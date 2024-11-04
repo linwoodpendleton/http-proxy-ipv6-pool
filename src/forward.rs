@@ -210,7 +210,15 @@ async fn handle_connection(
     let client_to_server = tokio::io::copy(&mut rl, &mut wr);
     let server_to_client = tokio::io::copy(&mut rr, &mut wl);
 
-    tokio::try_join!(client_to_server, server_to_client)?;
+    match tokio::try_join!(client_to_server, server_to_client) {
+        Ok(_) => {
+            eprintln!("数据转发完成。");
+        }
+        Err(e) => {
+            eprintln!("数据转发过程中发生错误: {}", e);
+            return Err(e.into());
+        }
+    }
     eprintln!("数据转发完成。");
     Ok(())
 }
