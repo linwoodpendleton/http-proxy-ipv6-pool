@@ -201,8 +201,9 @@ async fn handle_connection(
             return Err(e.into());
         }
     };
-
+    eprintln!("TLS 握手成功。");
     // 在本地连接和远程连接之间转发数据
+    eprintln!("开始转发数据。");
     let (mut rl, mut wl) = tokio::io::split(local_stream);
     let (mut rr, mut wr) = tokio::io::split(remote_stream);
 
