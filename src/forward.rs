@@ -3,7 +3,7 @@
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-use httparse::Response;
+
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use rand::seq::SliceRandom;
 
@@ -220,47 +220,28 @@ async fn connect_via_http_proxy(
 
     stream.write_all(connect_request.as_bytes()).await?;
 
-    let mut buf = [0u8; 4096];
-    let mut pos = 0;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 1024];
 
-    // 读取响应
     loop {
-        let n = stream.read(&mut buf[pos..]).await?;
+        let n = stream.read(&mut buf).await?;
         if n == 0 {
             return Err("Proxy server closed connection".into());
         }
-        pos += n;
+        response.extend_from_slice(&buf[..n]);
 
-        // 尝试解析响应
-        let mut headers = [httparse::EMPTY_HEADER; 16];
-        let mut res = Response::new(&mut headers);
-        let status = res.parse(&buf[..pos]);
-
-        match status {
-            Ok(httparse::Status::Complete(_)) => {
-                if let Some(code) = res.code {
-                    if 200 <= code && code < 300 {
-                        // 成功，返回连接
-                        return Ok(stream);
-                    } else {
-                        let response_str = String::from_utf8_lossy(&buf[..pos]);
-                        return Err(format!("Proxy returned error status {}: {}", code, response_str).into());
-                    }
-                } else {
-                    return Err("Failed to get response code from proxy".into());
-                }
-            }
-            Ok(httparse::Status::Partial) => {
-                // 继续读取
-                if pos >= buf.len() {
-                    return Err("Proxy response too large".into());
-                }
-                continue;
-            }
-            Err(e) => {
-                return Err(format!("Failed to parse proxy response: {}", e).into());
-            }
+        // 使用 windows 方法检查是否包含 \r\n\r\n
+        if response.windows(4).any(|window| window == b"\r\n\r\n") {
+            break;
         }
+    }
+
+    let response_str = String::from_utf8_lossy(&response);
+
+    if response_str.contains("200") {
+        Ok(stream)
+    } else {
+        Err(format!("Failed to establish connection via HTTP proxy: {}", response_str).into())
     }
 }
 
