@@ -353,6 +353,7 @@ dependencies = [
  "base64",
  "cidr",
  "getopts",
+ "httparse",
  "hyper",
  "lazy_static",
  "native-tls",
