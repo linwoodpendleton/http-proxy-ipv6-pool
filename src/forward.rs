@@ -192,7 +192,13 @@ async fn handle_connection(
 
     // 通过 TLS Connector 建立 TLS 连接，并指定 SNI
     let domain = mapping.sni_host.as_str();
-    let remote_stream = connector.connect(domain, remote_tcp_stream).await?;
+    let remote_stream = match connector.connect(domain, remote_tcp_stream).await {
+        Ok(stream) => stream,
+        Err(e) => {
+            eprintln!("TLS 握手失败: {}", e);
+            return Err(e.into());
+        }
+    };
 
     // 在本地连接和远程连接之间转发数据
     let (mut rl, mut wl) = tokio::io::split(local_stream);
