@@ -149,6 +149,7 @@ async fn handle_connection(
     mapping: ForwardMapping,
     _timeout_duration: Duration,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    eprintln!("处理来自 {:?} 的连接", local_stream.peer_addr());
     // 创建原生 TLS 连接器
     let mut builder = NativeTlsConnector::builder();
 
@@ -159,6 +160,7 @@ async fn handle_connection(
     let connector = TlsConnector::from(native_connector);
 
     // 建立到远程服务器的 TCP 连接（可能通过代理）
+    eprintln!("正在建立与远程服务器的 TCP 连接...");
     let remote_tcp_stream = match mapping.proxy_type {
         ProxyType::None => {
             // 直接连接
@@ -189,7 +191,7 @@ async fn handle_connection(
             }
         }
     };
-
+    eprintln!("开始在客户端和服务器之间转发数据。");
     // 通过 TLS Connector 建立 TLS 连接，并指定 SNI
     let domain = mapping.sni_host.as_str();
     let remote_stream = match connector.connect(domain, remote_tcp_stream).await {
@@ -208,7 +210,7 @@ async fn handle_connection(
     let server_to_client = tokio::io::copy(&mut rr, &mut wl);
 
     tokio::try_join!(client_to_server, server_to_client)?;
-
+    eprintln!("数据转发完成。");
     Ok(())
 }
 
