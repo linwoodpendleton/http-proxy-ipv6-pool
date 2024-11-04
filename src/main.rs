@@ -1,5 +1,6 @@
 mod proxy;
 mod socks5;
+mod forward;
 
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use getopts::Options;
@@ -8,7 +9,7 @@ use socks5::start_socks5_proxy;
 use std::{env, process::exit, net::IpAddr, net::SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
-
+use forward::{ parse_forward_mapping, start_forward_proxy};
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
@@ -51,6 +52,16 @@ async fn main() {
     opts.optflag("h", "help", "Print this help menu");
     opts.optopt("r", "system_route", "Whether to use system routing instead of ndpdd. (Provide network card interface, such as eth0)", "Network Interface");
     opts.optopt("g", "gateway", "Some service providers need to track the route before it takes effect.", "Gateway");
+
+
+    // 新增的 --forward 参数
+    opts.optmulti(
+        "",
+        "forward",
+        "Forwarding mapping in the format local_addr,remote_addr,sni_host[,proxy_addr1|proxy_addr2|...,proxy_type]",
+        "FORWARD",
+    );
+
 
     let matches = match opts.parse(&args[1..]) {
         Ok(m) => m,
@@ -112,6 +123,39 @@ async fn main() {
             return;
         }
     };
+
+    // 解析并存储代理映射
+    let forward_mappings = matches
+        .opt_strs("forward")
+        .into_iter()
+        .filter_map(|mapping_str| parse_forward_mapping(&mapping_str))
+        .collect::<Vec<_>>();
+
+    // 启动代理映射任务
+    for mapping in forward_mappings {
+        let ipv6_subnets = ipv6_subnets.clone();
+        let ipv4_subnets = ipv4_subnets.clone();
+        let allowed_ips = allowed_ips.clone();
+
+        tokio::spawn(async move {
+            if let Err(e) = start_forward_proxy(
+                mapping.clone(),                       // 克隆 mapping
+                Arc::from(ipv6_subnets),             // 克隆 Arc
+                Arc::from(ipv4_subnets),             // 克隆 Arc
+                allowed_ips.clone(),                   // 克隆 allowed_ips
+                timeout_duration,                      // Copy 类型，无需克隆
+            )
+                .await
+            {
+                eprintln!(
+                    "Forward proxy for {} encountered an error: {}",
+                    mapping.local_addr, e
+                );
+            }
+        });
+    }
+
+
 
     let ipv6_subnets = Arc::new(ipv6_subnets);
     let ipv4_subnets = Arc::new(ipv4_subnets);
