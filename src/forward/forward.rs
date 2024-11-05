@@ -15,7 +15,6 @@ use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
 use crate::forward::curl_ffi::CURLcode::CURLE_OK;
-use crate::forward::curl_ffi::CURLE_OK;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
 #[derive(Clone)]
