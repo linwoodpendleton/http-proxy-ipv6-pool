@@ -507,7 +507,7 @@ pub async fn handle_connection(
     local_stream.write_all(full_response.as_bytes()).await?;
 
     for header in response_headers.iter() {
-        if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date") {
+        if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2")  {
             continue;
         }
         // 合并所有部分，并确保有一个空行分隔头部和体
