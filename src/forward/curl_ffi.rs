@@ -106,6 +106,8 @@ pub const CURLOPT_PROXYTYPE: c_int = 101;
 pub const CURLPROXY_HTTP: c_int = 0;
 pub const CURLPROXY_SOCKS5: c_int = 5;
 
+pub const CURLOPT_POSTFIELDSIZE: c_int = 60;
+
 
 
 // 定义 curl_easy_getinfo 的选项常量

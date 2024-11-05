@@ -346,14 +346,24 @@ pub async fn handle_connection(
         // 设置请求体（仅当存在时）
         if !body.is_empty() {
 
-            let body_c = CString::new(body.to_vec())?; // 转换请求体为 CString
-            eprintln!("请求体: {:?}", body_c);
-            let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, body_c.as_ptr() as *const c_void);
+            eprintln!("请求体大小: {}", body.len());
+
+            // 设置二进制数据为请求体
+            let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, body.as_ptr() as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res);
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res).into());
+            }
+
+            // 设置请求体的大小
+            let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDSIZE, body.len() as c_long as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res);
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res).into());
             }
         }
         let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
