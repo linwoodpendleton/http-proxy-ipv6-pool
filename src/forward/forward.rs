@@ -488,7 +488,7 @@ pub async fn handle_connection(
 
             Ok((response_code as u32, response_headers, response_body))
         }
-    }).await.map_err(|e| Box::<dyn std::error::Error + Send + Sync + 'static>::from(e))??;
+    }).await.map_err(|e| Box::<dyn std::error::Error + Send + Sync + 'static>::from(e))?;
 
 
 
