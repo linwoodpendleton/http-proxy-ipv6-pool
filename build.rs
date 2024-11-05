@@ -15,14 +15,18 @@ fn main() {
             println!("cargo:rustc-link-lib=static=nghttp2");
             println!("cargo:rustc-link-lib=static=brotlidec");
 
+
             // 静态链接 OpenSSL
             println!("cargo:rustc-link-lib=static=ssl");
             println!("cargo:rustc-link-lib=static=crypto");
 
             // 静态链接其他系统库
-            println!("cargo:rustc-link-lib=static=pthread");
-            println!("cargo:rustc-link-lib=static=dl");
-            println!("cargo:rustc-link-lib=static=z");
+            println!("cargo:rustc-link-lib=dylib=pthread");
+            println!("cargo:rustc-link-lib=dylib=dl");
+            println!("cargo:rustc-link-lib=dylib=m");
+            println!("cargo:rustc-link-lib=dylib=util");
+            println!("cargo:rustc-link-lib=dylib=rt");
+
         },
         "macos" => {
             // macOS 特定的链接设置
@@ -37,9 +41,12 @@ fn main() {
             println!("cargo:rustc-link-lib=static=crypto");
 
             // 静态链接其他系统库
-            println!("cargo:rustc-link-lib=static=pthread");
-            println!("cargo:rustc-link-lib=static=dl");
-            println!("cargo:rustc-link-lib=static=z");
+            println!("cargo:rustc-link-lib=dylib=pthread");
+            println!("cargo:rustc-link-lib=dylib=dl");
+            println!("cargo:rustc-link-lib=dylib=m");
+            println!("cargo:rustc-link-lib=dylib=util");
+            println!("cargo:rustc-link-lib=dylib=rt");
+
         },
         other => {
             panic!("Unsupported target OS: {}", other);
