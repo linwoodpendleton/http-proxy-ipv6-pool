@@ -434,19 +434,22 @@ pub async fn handle_connection(
         response_headers_formatted.push_str("\r\n");
     }
 
+    // 添加必要的头部，如 Content-Length
+    let content_length = response_data.len();
+    response_headers_formatted.push_str(&format!("Content-Length: {}\r\n", content_length));
+
+    // 添加 Connection: close
+    response_headers_formatted.push_str("Connection: close\r\n");
+
     // 构建状态行
     let status_text = get_status_text(response_code);
     let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
 
-    // 添加必要的头部
-    let connection = "Connection: close\r\n";
-
-    // 合并所有部分
+    // 合并所有部分，并确保有一个空行分隔头部和体
     let full_response = format!(
-        "{}{}{}{}\r\n",
+        "{}{}{}\r\n",
         status_line,
         response_headers_formatted,
-        connection,
         ""
     );
 
