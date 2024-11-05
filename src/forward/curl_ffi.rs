@@ -1,15 +1,16 @@
 // src/forward/curl_ffi.rs
 
 use libc::{c_char, c_int, c_long, c_void};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::fmt;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use std::ffi::CString;
 
 /// 定义 CURL 类型为不透明类型
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CURL(pub c_void);
+#[derive(Debug)]
+pub struct CURL(c_void);
 
 /// 定义 CURLINFO 类型
 pub type CURLINFO = c_int;
@@ -79,7 +80,7 @@ extern "C" {
     pub fn curl_slist_free_all(list: *mut c_void);
 
     /// 包装函数，用于获取响应码
-    pub fn get_response_code(curl: *mut c_void, response_code: *mut c_long) -> CURLcode;
+    pub fn get_response_code(curl: *mut CURL, response_code: *mut c_long) -> CURLcode;
 }
 
 /// 定义 curl_easy_setopt 的选项常量
@@ -114,7 +115,7 @@ pub(crate) extern "C" fn header_callback(
         return 0;
     }
 
-    // 将 userdata 转换为 Arc<Mutex<Vec<String>>>
+    // 将 userdata 转换为 &Arc<Mutex<Vec<String>>>
     let headers = unsafe { &*(userdata as *const Arc<Mutex<Vec<String>>>) };
 
     // 从 ptr 创建 slice
@@ -140,7 +141,7 @@ pub(crate) extern "C" fn write_callback(
         return 0;
     }
 
-    // 将 userdata 转换为 Arc<Mutex<Vec<u8>>>
+    // 将 userdata 转换为 &Arc<Mutex<Vec<u8>>>
     let body = unsafe { &*(userdata as *const Arc<Mutex<Vec<u8>>>) };
 
     // 从 ptr 创建 slice
@@ -165,7 +166,7 @@ pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -
 /// 定义一个辅助函数，用于设置 void 指针类型的 curl 选项
 pub fn set_curl_option_void(handle: *mut c_void, option: c_int, value: *const c_void) -> Result<(), Box<dyn Error>> {
     let res = unsafe { curl_easy_setopt(handle, option, value) };
-    if res != CURLE_OK.0 {
+    if res.0 != CURLE_OK.0 {
         return Err(format!("curl_easy_setopt failed: {}", res).into());
     }
     Ok(())
