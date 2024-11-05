@@ -77,6 +77,9 @@ extern "C" {
 
     /// 包装函数，用于获取响应码
     pub fn get_response_code(curl: *mut c_void, response_code: *mut c_long) -> CURLcode;
+
+
+
 }
 
 // 定义 curl_easy_setopt 的选项常量
@@ -100,54 +103,10 @@ pub struct CurlResponse {
 }
 
 /// 头回调函数
-pub(crate) extern "C" fn header_callback(
-    ptr: *const c_char,
-    size: usize,
-    nmemb: usize,
-    userdata: *mut c_void,
-) -> usize {
-    let real_size = size * nmemb;
-    if userdata.is_null() {
-        return 0;
-    }
 
-    // 将 userdata 转换为 &Arc<Mutex<Vec<String>>>
-    let headers = unsafe { &*(userdata as *const Arc<Mutex<Vec<String>>>) };
-
-    // 从 ptr 创建 slice
-    let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, real_size) };
-    if let Ok(s) = std::str::from_utf8(slice) {
-        let header = s.trim_end_matches("\r\n").to_string();
-        let mut headers_lock = headers.lock().unwrap();
-        headers_lock.push(header);
-    }
-
-    real_size
-}
 
 /// 写回调函数
-pub(crate) extern "C" fn write_callback(
-    ptr: *const c_char,
-    size: usize,
-    nmemb: usize,
-    userdata: *mut c_void,
-) -> usize {
-    let real_size = size * nmemb;
-    if userdata.is_null() {
-        return 0;
-    }
 
-    // 将 userdata 转换为 &Arc<Mutex<Vec<u8>>>
-    let body = unsafe { &*(userdata as *const Arc<Mutex<Vec<u8>>>) };
-
-    // 从 ptr 创建 slice
-    let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, real_size) };
-
-    let mut body_lock = body.lock().unwrap();
-    body_lock.extend_from_slice(slice);
-
-    real_size
-}
 
 /// 定义一个辅助函数，用于设置字符串类型的 curl 选项
 pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -> Result<(), Box<dyn Error>> {

@@ -163,6 +163,53 @@ pub async fn start_forward_proxy(
         });
     }
 }
+
+pub(crate) extern "C" fn header_callback(
+    ptr: *const c_char,
+    size: usize,
+    nmemb: usize,
+    userdata: *mut c_void,
+) -> usize {
+    let real_size = size * nmemb;
+    if userdata.is_null() {
+        return 0;
+    }
+
+    // 将 userdata 转换为 &Arc<Mutex<Vec<String>>>
+    let headers = unsafe { &*(userdata as *const Arc<Mutex<Vec<String>>>) };
+
+    // 从 ptr 创建 slice
+    let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, real_size) };
+    if let Ok(s) = std::str::from_utf8(slice) {
+        let header = s.trim_end_matches("\r\n").to_string();
+        let mut headers_lock = headers.lock().unwrap();
+        headers_lock.push(header);
+    }
+
+    real_size
+}
+pub(crate) extern "C" fn write_callback(
+    ptr: *const c_char,
+    size: usize,
+    nmemb: usize,
+    userdata: *mut c_void,
+) -> usize {
+    let real_size = size * nmemb;
+    if userdata.is_null() {
+        return 0;
+    }
+
+    // 将 userdata 转换为 &Arc<Mutex<Vec<u8>>>
+    let body = unsafe { &*(userdata as *const Arc<Mutex<Vec<u8>>>) };
+
+    // 从 ptr 创建 slice
+    let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, real_size) };
+
+    let mut body_lock = body.lock().unwrap();
+    body_lock.extend_from_slice(slice);
+
+    real_size
+}
 pub async fn handle_connection(
     mut local_stream: TcpStream,
     mapping: ForwardMapping,
@@ -301,6 +348,13 @@ pub async fn handle_connection(
         let headers_ptr = Arc::into_raw(headers_arc) as *mut c_void;
         let body_ptr = Arc::into_raw(body_arc) as *mut c_void;
 
+        eprintln!("设置回调1");
+        // 设置写回调
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_WRITEFUNCTION,
+            write_callback as *const c_void,
+        )?;
 
 
         // 执行请求
