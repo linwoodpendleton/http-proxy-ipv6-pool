@@ -301,13 +301,6 @@ pub async fn handle_connection(
         let headers_ptr = Arc::into_raw(headers_arc) as *mut c_void;
         let body_ptr = Arc::into_raw(body_arc) as *mut c_void;
 
-        eprintln!("设置回调1");
-        // 设置写回调
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_WRITEFUNCTION,
-            write_callback as *const c_void,
-        )?;
 
 
         // 执行请求
