@@ -494,20 +494,22 @@ pub async fn handle_connection(
 
 
     // // 构建状态行
-    // let status_text = get_status_text(response_code);
-    // let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
-    //
-    // // 合并所有部分，并确保有一个空行分隔头部和体
-    // let full_response = format!(
-    //     "{}{}",
-    //     status_line,
-    //     ""
-    // );
-    // // 发送响应头部
-    // local_stream.write_all(full_response.as_bytes()).await?;
+    let status_text = get_status_text(response_code);
+    let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
+
+    // 合并所有部分，并确保有一个空行分隔头部和体
+    let full_response = format!(
+        "{}{}",
+        status_line,
+        ""
+    );
+    // 发送响应头部
+    local_stream.write_all(full_response.as_bytes()).await?;
 
     for header in response_headers.iter() {
-
+        if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") {
+            continue;
+        }
         // 合并所有部分，并确保有一个空行分隔头部和体
         let head_response = format!(
             "{}{}",
