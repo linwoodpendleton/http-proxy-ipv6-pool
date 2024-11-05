@@ -1,21 +1,20 @@
 // src/forward/curl_ffi.rs
 
 use libc::{c_char, c_int, c_long, c_void};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::fmt;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
-use std::ffi::CString;
 
-/// 定义 CURL 类型为不透明类型
+// 定义 CURL 类型为不透明类型
 #[repr(C)]
 #[derive(Debug)]
 pub struct CURL(c_void);
 
-/// 定义 CURLINFO 类型
+// 定义 CURLINFO 类型
 pub type CURLINFO = c_int;
 
-/// 定义 CURLcode 类型为新的元组结构体
+// 定义 CURLcode 类型为新的元组结构体
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CURLcode(pub c_int);
@@ -25,9 +24,6 @@ pub const CURLE_OK: CURLcode = CURLcode(0);
 pub const CURLE_UNSUPPORTED_PROTOCOL: CURLcode = CURLcode(1);
 pub const CURLE_FAILED_INIT: CURLcode = CURLcode(2);
 // 根据需要添加更多的 CURLcode 常量
-// pub const CURLE_URL_MALFORMAT: CURLcode = CURLcode(3);
-// pub const CURLE_NOT_BUILT_IN: CURLcode = CURLcode(4);
-// ... 继续添加其他必要的常量
 
 // 实现 Display trait for CURLcode
 impl fmt::Display for CURLcode {
@@ -46,7 +42,7 @@ impl fmt::Display for CURLcode {
 // 实现 Error trait for CURLcode
 impl Error for CURLcode {}
 
-/// FFI 绑定到 libcurl 和 libcurl-impersonate 的函数
+// FFI 绑定到 libcurl 和 libcurl-impersonate 的函数
 extern "C" {
     /// 通过 libcurl-impersonate 模拟浏览器
     pub fn curl_easy_impersonate(
@@ -83,7 +79,7 @@ extern "C" {
     pub fn get_response_code(curl: *mut c_void, response_code: *mut c_long) -> CURLcode;
 }
 
-/// 定义 curl_easy_setopt 的选项常量
+// 定义 curl_easy_setopt 的选项常量
 pub const CURLOPT_URL: c_int = 10002;
 pub const CURLOPT_CUSTOMREQUEST: c_int = 10036;
 pub const CURLOPT_POSTFIELDS: c_int = 10015;
@@ -93,10 +89,10 @@ pub const CURLOPT_WRITEDATA: c_int = 10001;
 pub const CURLOPT_HEADERFUNCTION: c_int = 20079;
 pub const CURLOPT_HEADERDATA: c_int = 10029;
 
-/// 定义 curl_easy_getinfo 的选项常量
+// 定义 curl_easy_getinfo 的选项常量
 pub const CURLINFO_RESPONSE_CODE: c_int = 2097164; // 通常为 CURLINFO_RESPONSE_CODE
 
-/// 定义一个结构体来存储响应头部和响应体
+// 定义一个结构体来存储响应头部和响应体
 // **建议**：将 `CurlResponse` 结构体移出 FFI 绑定文件，放到主代码模块中（例如 `forward.rs`）
 pub struct CurlResponse {
     pub headers: Arc<Mutex<Vec<String>>>,

@@ -124,45 +124,7 @@ fn is_allowed_ip(
 }
 
 /// 启动转发代理的异步函数
-pub async fn start_forward_proxy(
-    mapping: ForwardMapping,
-    ipv6_subnets: Arc<Vec<Ipv6Cidr>>,
-    ipv4_subnets: Arc<Vec<Ipv4Cidr>>,
-    allowed_ips: Option<Vec<IpAddr>>,
-    timeout_duration: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let listener = TcpListener::bind(mapping.local_addr).await?;
-    println!("Listening on {}", mapping.local_addr);
-
-    loop {
-        let (local_stream, client_addr) = listener.accept().await?;
-        let mapping = mapping.clone();
-        let ipv6_subnets = Arc::clone(&ipv6_subnets);
-        let ipv4_subnets = Arc::clone(&ipv4_subnets);
-        let allowed_ips = allowed_ips.clone();
-
-        // 检查客户端 IP 是否在允许的范围内
-        if !is_allowed_ip(
-            &client_addr.ip(),
-            &*ipv6_subnets, // 解引用 Arc 并获取引用
-            &*ipv4_subnets,
-            &allowed_ips,
-        ) {
-            eprintln!("Connection from {} is not allowed", client_addr);
-            continue;
-        }
-
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(
-                local_stream,
-                mapping,
-                timeout_duration,
-            ).await {
-                eprintln!("Error handling connection from {}: {}", client_addr, e);
-            }
-        });
-    }
-}
+/// 处理单个连接的异步函数
 pub async fn handle_connection(
     mut local_stream: TcpStream,
     mapping: ForwardMapping,
@@ -293,13 +255,9 @@ pub async fn handle_connection(
         }
 
         // **关键步骤**：正确传递 `userdata` 指针
-        // 1. Clone Arc to increase the reference count
-        let headers_arc = Arc::clone(&response.headers);
-        let body_arc = Arc::clone(&response.body);
-
-        // 2. Convert Arc pointers to raw pointers
-        let headers_ptr = Arc::into_raw(headers_arc) as *mut c_void;
-        let body_ptr = Arc::into_raw(body_arc) as *mut c_void;
+        // 直接传递 Arc 的引用，不使用 Arc::into_raw
+        let headers_ptr = &response.headers as *const Arc<Mutex<Vec<String>>> as *mut c_void;
+        let body_ptr = &response.body as *const Arc<Mutex<Vec<u8>>> as *mut c_void;
 
         eprintln!("设置回调1");
         // 设置写回调
@@ -377,10 +335,9 @@ pub async fn handle_connection(
             curl_slist_free_all(header_list);
         }
 
-        // **重要**：在使用完 `Arc::into_raw` 转换的指针后，需要重新构建 `Arc` 以避免内存泄漏
-        // 注意：这假设在回调函数中不会持有对 `Arc` 的引用
-        let _headers = Arc::from_raw(headers_ptr as *const Mutex<Vec<String>>);
-        let _body = Arc::from_raw(body_ptr as *const Mutex<Vec<u8>>);
+        // **不需要重新构建 Arc**
+        // let _headers = Arc::from_raw(headers_ptr as *const Mutex<Vec<String>>);
+        // let _body = Arc::from_raw(body_ptr as *const Mutex<Vec<u8>>);
 
         // 返回响应码、响应头部和响应体
         (response_code as u32, response_headers, response_data)
@@ -420,7 +377,6 @@ pub async fn handle_connection(
     // 在函数末尾添加 Ok(())
     Ok(())
 }
-
 /// 根据响应码获取状态文本
 fn get_status_text(code: u32) -> &'static str {
     match code {
