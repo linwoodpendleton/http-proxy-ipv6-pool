@@ -15,6 +15,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
+use native_tls::Error;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
 use crate::forward::curl_ffi::CURLE_OK;
@@ -245,7 +246,7 @@ pub async fn handle_connection(
     }
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let (response_code, response_headers, response_data) = tokio::task::spawn_blocking(move || -> Result<(u32, Vec<String>, Vec<u8>), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let (response_code, response_headers, response_data) = tokio::task::spawn_blocking(move || -> Result<(u32, Vec<String>, Vec<u8>), Error> {
         // 初始化 CURL easy handle
         let easy_handle = unsafe { curl_easy_init() };
         if easy_handle.is_null() {
@@ -488,7 +489,7 @@ pub async fn handle_connection(
 
             Ok((response_code as u32, response_headers, response_body))
         }
-    }).await.map_err(|e| Box::<dyn std::error::Error + Send + Sync + 'static>::from(e))?;
+    }).await??;
 
 
 
