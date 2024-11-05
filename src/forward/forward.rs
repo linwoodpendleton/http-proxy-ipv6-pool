@@ -366,9 +366,7 @@ pub async fn handle_connection(
         let mut header_list = ptr::null_mut();
         for (key, value) in headers_map.iter() {
             // 忽略一些自动设置的头部
-            if key == "host" || key == "accept" {
-                continue;
-            }
+
             let header = format!("{}: {}", key, value);
             let c_header = CString::new(header).unwrap();
             header_list = curl_slist_append(header_list, c_header.as_ptr());
