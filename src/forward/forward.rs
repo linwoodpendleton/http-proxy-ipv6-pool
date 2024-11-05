@@ -292,18 +292,21 @@ pub async fn handle_connection(
         if !header_list.is_null() {
             set_curl_option_void(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void)?;
         }
-
+        eprintln!("设置回调1");
         // 设置写回调
         set_curl_option_void(
             easy_handle,
             CURLOPT_WRITEFUNCTION,
             write_callback as *const c_void,
         )?;
+        eprintln!("设置回调2");
+
         set_curl_option_void(
             easy_handle,
             CURLOPT_WRITEDATA,
             Arc::as_ptr(&response.body) as *mut c_void,
         )?;
+        eprintln!("设置回调3");
 
         // 设置头回调
         set_curl_option_void(
@@ -311,6 +314,7 @@ pub async fn handle_connection(
             CURLOPT_HEADERFUNCTION,
             header_callback as *const c_void,
         )?;
+        eprintln!("设置回调4");
         set_curl_option_void(
             easy_handle,
             CURLOPT_HEADERDATA,
