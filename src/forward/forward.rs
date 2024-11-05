@@ -4,7 +4,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt}; // 导入 AsyncReadExt 和 AsyncWr
 use super::curl_wrapper::{set_curl_option_string, set_curl_option_void};
 use crate::forward::curl_ffi::*;
 use libc::{c_char, c_int};
-use std::ffi::{c_void, CString};
+use std::ffi::{c_long, c_void, CString};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
@@ -229,7 +229,7 @@ async fn handle_connection(
     };
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let response_data = unsafe {
+    let (response_code, response_data) = unsafe {
         // 初始化 CURL easy handle
         let easy_handle = curl_easy_init();
         if easy_handle.is_null() {
@@ -239,8 +239,8 @@ async fn handle_connection(
 
         // 使用 `scopeguard` 确保在函数结束时清理 CURL handle
         scopeguard::defer! {
-            curl_easy_cleanup(easy_handle);
-        }
+        curl_easy_cleanup(easy_handle);
+    }
 
         // 设置 URL
         set_curl_option_string(easy_handle, CURLOPT_URL, &target_url)?;
@@ -313,8 +313,11 @@ async fn handle_connection(
         }
 
         // 获取响应码
-        let mut response_code: i64 = 0;
-        let res = curl_easy_getinfo(easy_handle, CURLINFO_RESPONSE_CODE, &mut response_code as *mut _ as *mut c_void);
+        let mut response_code: c_long = 0;
+        let res = get_response_code(
+            easy_handle,
+            &mut response_code as *mut _ as *mut c_void,
+        );
         if res != CURLcode::CURLE_OK {
             eprintln!("Failed to get response code: {:?}", res);
             if !header_list.is_null() {
@@ -324,26 +327,25 @@ async fn handle_connection(
         }
 
         eprintln!("响应码: {}", response_code);
-        // 打印原始响应数据
-        eprintln!("原始响应数据: {:?}", String::from_utf8_lossy(&response_data));
+
         // 关闭 CURL
         if !header_list.is_null() {
             curl_slist_free_all(header_list);
         }
 
-        response_data
+        // 返回响应码和数据
+        (response_code as u32, response_data)
     };
-    let response_code = 200;
-    // 构建 HTTP 响应
-    let response = format!(
+    let status_text = get_status_text(response_code);
+    let response_headers = format!(
         "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         response_code,
-        get_status_text(response_code),
+        status_text,
         response_data.len()
     );
 
-    // 发送 HTTP 响应头
-    local_stream.write_all(response.as_bytes()).await?;
+    // 发送 HTTP 响应头部
+    local_stream.write_all(response_headers.as_bytes()).await?;
 
     // 发送响应体
     local_stream.write_all(&response_data).await?;

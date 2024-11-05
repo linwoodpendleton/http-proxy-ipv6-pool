@@ -16,7 +16,7 @@ fn main() {
             println!("cargo:rustc-link-search=native=/usr/local/lib");
             println!("cargo:rustc-link-search=native=/usr/lib");
             println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
-
+            println!("cargo:rustc-link-lib=static=curl_wrapper");
             // 静态链接 libcurl-impersonate-chrome 及其依赖库
             println!("cargo:rustc-link-lib=dylib=curl-impersonate-chrome");
             println!("cargo:rustc-link-lib=dylib=nghttp2");

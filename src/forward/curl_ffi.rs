@@ -1,10 +1,12 @@
 // src/forward/curl_ffi.rs
 
-use libc::{c_char, c_int, c_void};
+use libc::{c_char, c_int, c_void, c_long};
 use std::ffi::CString;
 use std::fmt;
 use std::error::Error;
+pub type CURL = c_void;
 
+pub type CURLINFO = c_int;
 /// 定义 CURLcode 类型
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +52,8 @@ extern "C" {
 
     pub fn curl_slist_append(list: *mut c_void, header: *const c_char) -> *mut c_void;
     pub fn curl_slist_free_all(list: *mut c_void);
+    pub fn get_response_code(curl: *mut CURL, response_code: *mut c_void) -> CURLcode;
+
 }
 
 /// 定义 curl_easy_setopt 的选项常量
