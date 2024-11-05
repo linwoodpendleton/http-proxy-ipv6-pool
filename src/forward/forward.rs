@@ -57,16 +57,18 @@ pub fn parse_forward_mapping(mapping_str: &str) -> Option<ForwardMapping> {
 
     let proxy_addrs = if parts.len() >= 4 {
         // 分割代理地址列表
-        let proxy_addr_list = parts[3]
+        let proxy_addr_list: Vec<&str> = parts[3]
             .split('|')
-            .filter_map(|addr_str| match addr_str.parse::<SocketAddr>() {
-                Ok(addr) => Some(addr),
-                Err(e) => {
-                    eprintln!("Invalid proxy address '{}': {}", addr_str, e);
-                    None
+            .filter(|addr_str| {
+                if addr_str.contains(':') {
+                    true
+                } else {
+                    eprintln!("Invalid proxy address format '{}'", addr_str);
+                    false
                 }
             })
-            .collect::<Vec<_>>();
+            .collect();
+
 
 
         if proxy_addr_list.is_empty() {
