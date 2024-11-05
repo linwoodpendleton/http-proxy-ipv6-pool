@@ -11,8 +11,27 @@ fn main() {
             // Linux 特定的链接设置
             println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-linux-gnu/");
             println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
+            // 静态链接 libnghttp2、Brotli 和其他依赖库
+            // 指定库搜索路径
+            println!("cargo:rustc-link-search=native=/usr/local/lib");
+            println!("cargo:rustc-link-search=native=/usr/lib");
+            println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
 
+            // 静态链接 libcurl-impersonate-chrome 及其依赖库
             println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
+            println!("cargo:rustc-link-lib=static=nghttp2");
+            println!("cargo:rustc-link-lib=static=brotlidec");
+            println!("cargo:rustc-link-lib=static=brotlienc");
+            println!("cargo:rustc-link-lib=static=ssl");
+            println!("cargo:rustc-link-lib=static=crypto");
+            println!("cargo:rustc-link-lib=static=z");
+
+            // 动态链接系统库
+            println!("cargo:rustc-link-lib=dylib=pthread");
+            println!("cargo:rustc-link-lib=dylib=dl");
+            println!("cargo:rustc-link-lib=dylib=m");
+            println!("cargo:rustc-link-lib=dylib=util");
+            println!("cargo:rustc-link-lib=dylib=rt");
 
         },
         "macos" => {
