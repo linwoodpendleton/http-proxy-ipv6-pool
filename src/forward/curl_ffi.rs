@@ -100,6 +100,14 @@ pub const CURLOPT_WRITEDATA: c_int = 10001;
 pub const CURLOPT_HEADERFUNCTION: c_int = 20079;
 pub const CURLOPT_HEADERDATA: c_int = 10029;
 
+pub const CURLOPT_PROXY: c_int = 10004;
+pub const CURLOPT_PROXYTYPE: c_int = 101;
+
+pub const CURLPROXY_HTTP: c_int = 0;
+pub const CURLPROXY_SOCKS5: c_int = 5;
+
+
+
 // 定义 curl_easy_getinfo 的选项常量
 pub const CURLINFO_RESPONSE_CODE: c_int = 2097164; // 通常为 CURLINFO_RESPONSE_CODE
 

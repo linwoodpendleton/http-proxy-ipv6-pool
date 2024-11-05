@@ -267,7 +267,65 @@ pub async fn handle_connection(
             unsafe { free_headers(headers_ptr) };
             return Err(format!("curl_easy_setopt CURLOPT_URL failed: {}", res).into());
         }
+        // 设置代理（如果存在）
+        if !mapping.proxy_addrs.is_empty() {
+            // 设置代理地址
+            let proxy_addr = mapping.proxy_addrs[0].to_string(); // 选择第一个代理地址
+            let proxy_c = CString::new(proxy_addr).unwrap();
+            let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_PROXY failed: {}", res);
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err("Failed to set proxy".into());
+            }
 
+            // 设置代理类型
+            match mapping.proxy_type {
+                ProxyType::Http => {
+                    let proxy_type = CURLPROXY_HTTP as c_long;
+                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
+                    if res.0 != CURLE_OK.0 {
+                        eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
+                        unsafe { free_memory(mem_ptr) };
+                        unsafe { free_headers(headers_ptr) };
+                        return Err("Failed to set proxy type (HTTP)".into());
+                    }
+                },
+                ProxyType::Socks5 => {
+                    let proxy_type = CURLPROXY_SOCKS5 as c_long;
+                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
+                    if res.0 != CURLE_OK.0 {
+                        eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
+                        unsafe { free_memory(mem_ptr) };
+                        unsafe { free_headers(headers_ptr) };
+                        return Err("Failed to set proxy type (SOCKS5)".into());
+                    }
+                },
+                ProxyType::None => {
+                    // 不使用代理
+                },
+            }
+
+            // 如果需要代理认证，设置用户名和密码
+            // let proxy_user = CString::new("your_proxy_username").unwrap();
+            // let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYUSERNAME, proxy_user.as_ptr() as *const c_void);
+            // if res.0 != CURLE_OK.0 {
+            //     eprintln!("curl_easy_setopt CURLOPT_PROXYUSERNAME failed: {}", res);
+            //     unsafe { free_memory(mem_ptr) };
+            //     unsafe { free_headers(headers_ptr) };
+            //     return Err("Failed to set proxy username".into());
+            // }
+
+            // let proxy_pass = CString::new("your_proxy_password").unwrap();
+            // let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYPASSWORD, proxy_pass.as_ptr() as *const c_void);
+            // if res.0 != CURLE_OK.0 {
+            //     eprintln!("curl_easy_setopt CURLOPT_PROXYPASSWORD failed: {}", res);
+            //     unsafe { free_memory(mem_ptr) };
+            //     unsafe { free_headers(headers_ptr) };
+            //     return Err("Failed to set proxy password".into());
+            // }
+        }
         // 设置 HTTP 方法
         if method.to_uppercase() != "GET" {
             let method_c = CString::new(method)?;
@@ -315,7 +373,7 @@ pub async fn handle_connection(
         }
 
         // 设置写回调
-        eprintln!("设置回调1");
+        // eprintln!("设置回调1");
         let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void);
         if res.0 != CURLE_OK.0 {
             eprintln!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res);
@@ -326,7 +384,7 @@ pub async fn handle_connection(
             unsafe { free_headers(headers_ptr) };
             return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
         }
-        eprintln!("设置回调2");
+        // eprintln!("设置回调2");
         let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void);
         if res.0 != CURLE_OK.0 {
             eprintln!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res);
@@ -339,7 +397,7 @@ pub async fn handle_connection(
         }
 
         // 设置头回调
-        eprintln!("设置回调3");
+        // eprintln!("设置回调3");
         let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERFUNCTION, header_callback as *const c_void);
         if res.0 != CURLE_OK.0 {
             eprintln!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res);
@@ -350,7 +408,7 @@ pub async fn handle_connection(
             unsafe { free_headers(headers_ptr) };
             return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
         }
-        eprintln!("设置回调4");
+        // eprintln!("设置回调4");
         let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void);
         if res.0 != CURLE_OK.0 {
             eprintln!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res);
