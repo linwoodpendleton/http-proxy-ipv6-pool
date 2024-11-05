@@ -261,7 +261,7 @@ pub async fn handle_connection(
     }
 
         // 设置 URL
-        let target_url_c = CString::new(target_url).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+        let target_url_c = CString::new(target_url).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
         let res = unsafe { curl_easy_setopt(easy_handle, CURLOPT_URL, target_url_c.as_ptr() as *const c_void) };
         if res.0 != CURLE_OK.0 {
             eprintln!("curl_easy_setopt CURLOPT_URL failed: {}", res);
@@ -316,7 +316,7 @@ pub async fn handle_connection(
         // 设置 HTTP 方法
         unsafe {
             if method.to_uppercase() != "GET" {
-                let method_c = CString::new(method).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
+                let method_c = CString::new(method).map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync + 'static>)?;
                 let res = curl_easy_setopt(easy_handle, CURLOPT_CUSTOMREQUEST, method_c.as_ptr() as *const c_void);
                 if res.0 != CURLE_OK.0 {
                     eprintln!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res);
@@ -488,7 +488,7 @@ pub async fn handle_connection(
 
             Ok((response_code as u32, response_headers, response_body))
         }
-    }).await??;
+    }).await.map_err(|e| Box::<dyn std::error::Error + Send + Sync + 'static>::from(e))??;
 
 
 
