@@ -132,7 +132,7 @@ pub struct HeaderStruct {
 
 
 /// 定义一个辅助函数，用于设置字符串类型的 curl 选项
-pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -> Result<(), Box<dyn Error>> {
+pub fn set_curl_option_string(handle: *mut CURL, option: c_int, value: &str) -> Result<(), Box<dyn Error>> {
     let c_value = CString::new(value)?;
     let res = unsafe { curl_easy_setopt(handle, option, c_value.as_ptr() as *const c_void) };
     if res.0 != CURLE_OK.0 {
@@ -142,7 +142,7 @@ pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -
 }
 
 /// 定义一个辅助函数，用于设置 void 指针类型的 curl 选项
-pub fn set_curl_option_void(handle: *mut c_void, option: c_int, value: *const c_void) -> Result<(), Box<dyn Error>> {
+pub fn set_curl_option_void(handle: *mut CURL, option: c_int, value: *const c_void) -> Result<(), Box<dyn Error>> {
     let res = unsafe { curl_easy_setopt(handle, option, value) };
     if res.0 != CURLE_OK.0 {
         return Err(format!("curl_easy_setopt failed: {}", res).into());
