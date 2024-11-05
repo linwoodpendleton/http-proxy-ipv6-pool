@@ -80,7 +80,7 @@ extern "C" {
     pub fn curl_slist_free_all(list: *mut c_void);
 
     /// 包装函数，用于获取响应码
-    pub fn get_response_code(curl: *mut CURL, response_code: *mut c_long) -> CURLcode;
+    pub fn get_response_code(curl: *mut c_void, response_code: *mut c_long) -> CURLcode;
 }
 
 /// 定义 curl_easy_setopt 的选项常量
