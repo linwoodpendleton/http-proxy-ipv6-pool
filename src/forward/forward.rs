@@ -324,7 +324,8 @@ async fn handle_connection(
         }
 
         eprintln!("响应码: {}", response_code);
-
+        // 打印原始响应数据
+        eprintln!("原始响应数据: {:?}", String::from_utf8_lossy(&response_data));
         // 关闭 CURL
         if !header_list.is_null() {
             curl_slist_free_all(header_list);
