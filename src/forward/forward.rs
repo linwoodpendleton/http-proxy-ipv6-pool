@@ -2,21 +2,19 @@
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt}; // 导入 AsyncReadExt 和 AsyncWriteExt
 use super::curl_wrapper::{set_curl_option_string, set_curl_option_void};
-use crate::forward::curl_ffi::*;
+use super::curl_ffi::*;
 use libc::{c_char, c_int};
-use std::ffi::{c_long, c_void, CString};
+use std::ffi::{c_long, c_void, CStr, CString};
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
 use std::time::Duration;
 use httparse::Response;
 use cidr::{Ipv4Cidr, Ipv6Cidr};
-use rand::seq::SliceRandom;
-
+use std::sync::{Arc, Mutex};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_native_tls::TlsConnector;
-use native_tls::{TlsConnector as NativeTlsConnector};
+use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
+use crate::forward::curl_ffi::CURLcode::CURLE_OK;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
 #[derive(Clone)]
@@ -177,7 +175,7 @@ async fn handle_connection(
     let mut buffer = Vec::new();
     loop {
         let mut temp_buf = [0u8; 1024];
-        let n = local_stream.read(&mut temp_buf).await?; // 使用 read 方法
+        let n = local_stream.read(&mut temp_buf).await?;
         if n == 0 {
             break;
         }
@@ -205,7 +203,10 @@ async fn handle_connection(
     let mut headers_map = std::collections::HashMap::new();
 
     for header in req.headers.iter() {
-        headers_map.insert(header.name.to_lowercase(), String::from_utf8_lossy(header.value).to_string());
+        headers_map.insert(
+            header.name.to_lowercase(),
+            String::from_utf8_lossy(header.value).to_string(),
+        );
     }
 
     if let Some(h) = headers_map.get("host") {
@@ -228,8 +229,14 @@ async fn handle_connection(
         &[]
     };
 
+    // 初始化 CurlResponse 结构体
+    let response = CurlResponse {
+        headers: Arc::new(Mutex::new(Vec::new())),
+        body: Arc::new(Mutex::new(Vec::new())),
+    };
+
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let (response_code, response_data) = unsafe {
+    let (response_code, response_headers, response_data) = unsafe {
         // 初始化 CURL easy handle
         let easy_handle = curl_easy_init();
         if easy_handle.is_null() {
@@ -239,8 +246,8 @@ async fn handle_connection(
 
         // 使用 `scopeguard` 确保在函数结束时清理 CURL handle
         scopeguard::defer! {
-        curl_easy_cleanup(easy_handle);
-    }
+            curl_easy_cleanup(easy_handle);
+        }
 
         // 设置 URL
         set_curl_option_string(easy_handle, CURLOPT_URL, &target_url)?;
@@ -266,7 +273,7 @@ async fn handle_connection(
         let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
         let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
         if result != CURLcode::CURLE_OK {
-            eprintln!("Failed to impersonate browser: {:?}", result);
+            eprintln!("Failed to impersonate browser: {}", result);
             return Err("Impersonation failed".into());
         }
 
@@ -286,21 +293,34 @@ async fn handle_connection(
         }
 
         // 设置写回调
-        let mut response_data = Vec::new();
-        let write_callback = write_function; // 移除 Option
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_WRITEFUNCTION,
+            write_callback as *const c_void,
+        )?;
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_WRITEDATA,
+            Arc::as_ptr(&response.body) as *mut c_void,
+        )?;
 
-        // 设置回调函数
-        set_curl_option_void(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void)?;
-
-        // 设置回调数据
-        let response_ptr: *mut Vec<u8> = &mut response_data as *mut _;
-        set_curl_option_void(easy_handle, CURLOPT_WRITEDATA, response_ptr as *mut c_void)?;
+        // 设置头回调
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_HEADERFUNCTION,
+            header_callback as *const c_void,
+        )?;
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_HEADERDATA,
+            Arc::as_ptr(&response.headers) as *mut c_void,
+        )?;
 
         // 执行请求
         let res = curl_easy_perform(easy_handle);
         if res != CURLcode::CURLE_OK {
             let error_str = if !curl_easy_strerror(res).is_null() {
-                let c_str = std::ffi::CStr::from_ptr(curl_easy_strerror(res) as *const c_char);
+                let c_str = CStr::from_ptr(curl_easy_strerror(res) as *const c_char);
                 c_str.to_string_lossy().into_owned()
             } else {
                 "Unknown CURL error".to_string()
@@ -316,10 +336,10 @@ async fn handle_connection(
         let mut response_code: c_long = 0;
         let res = get_response_code(
             easy_handle,
-            &mut response_code as *mut _ as *mut c_void,
+            &mut response_code as *mut c_long,
         );
         if res != CURLcode::CURLE_OK {
-            eprintln!("Failed to get response code: {:?}", res);
+            eprintln!("Failed to get response code: {}", res);
             if !header_list.is_null() {
                 curl_slist_free_all(header_list);
             }
@@ -328,32 +348,61 @@ async fn handle_connection(
 
         eprintln!("响应码: {}", response_code);
 
+        // 获取响应头部
+        let headers_lock = response.headers.lock().unwrap();
+        let response_headers = headers_lock.clone();
+        drop(headers_lock);
+
+        // 获取响应体
+        let body_lock = response.body.lock().unwrap();
+        let response_data = body_lock.clone();
+        drop(body_lock);
+
         // 关闭 CURL
         if !header_list.is_null() {
             curl_slist_free_all(header_list);
         }
 
-        // 返回响应码和数据
-        (response_code as u32, response_data)
+        // 返回响应码、响应头部和响应体
+        (response_code as u32, response_headers, response_data)
     };
+
+    eprintln!("原始响应数据: {:?}", String::from_utf8_lossy(&response_data));
+
+    // 构建完整的 HTTP 响应
+    let mut response_headers_formatted = String::new();
+    for header in response_headers.iter() {
+        response_headers_formatted.push_str(header);
+        response_headers_formatted.push_str("\r\n");
+    }
+
+    // 构建状态行
     let status_text = get_status_text(response_code);
-    let response_headers = format!(
-        "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        response_code,
-        status_text,
-        response_data.len()
+    let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
+
+    // 添加必要的头部
+    let content_length = response_data.len();
+    let connection = "Connection: close\r\n";
+
+    // 合并所有部分
+    let full_response = format!(
+        "{}{}{}{}\r\n",
+        status_line,
+        response_headers_formatted,
+        connection,
+        ""
     );
 
-    // 发送 HTTP 响应头部
-    local_stream.write_all(response_headers.as_bytes()).await?;
+    // 发送响应头部
+    local_stream.write_all(full_response.as_bytes()).await?;
 
     // 发送响应体
     local_stream.write_all(&response_data).await?;
 
-
     // 在函数末尾添加 Ok(())
     Ok(())
 }
+
 fn get_status_text(code: u32) -> &'static str {
     match code {
         200 => "OK",
