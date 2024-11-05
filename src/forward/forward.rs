@@ -508,13 +508,8 @@ pub async fn handle_connection(
 
     for header in response_headers.iter() {
 
-        // 合并所有部分，并确保有一个空行分隔头部和体
-        let head_response = format!(
-            "{}{}\r\n",
-            header,
-            ""
-        );
-        local_stream.write_all(head_response.as_bytes()).await?;
+
+        local_stream.write_all(header.as_bytes()).await?;
 
     }
 
