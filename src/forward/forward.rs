@@ -340,11 +340,14 @@ pub async fn handle_connection(
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res).into());
             }
+
         }
 
         // 设置请求体（仅当存在时）
         if !body.is_empty() {
-            let body_c = CString::new(body)?;
+
+            let body_c = CString::new(body.to_vec())?; // 转换请求体为 CString
+            eprintln!("请求体: {:?}", body_c);
             let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, body_c.as_ptr() as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res);
@@ -363,7 +366,7 @@ pub async fn handle_connection(
         let mut header_list = ptr::null_mut();
         for (key, value) in headers_map.iter() {
             // 忽略一些自动设置的头部
-            if key == "host" || key == "user-agent" || key == "accept" {
+            if key == "host" || key == "accept" {
                 continue;
             }
             let header = format!("{}: {}", key, value);
