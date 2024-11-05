@@ -76,7 +76,15 @@ extern "C" {
     pub fn curl_slist_free_all(list: *mut c_void);
 
     /// 包装函数，用于获取响应码
-    pub fn get_response_code(curl: *mut c_void, response_code: *mut c_long) -> CURLcode;
+    pub fn get_response_code(curl: *mut CURL, response_code: *mut c_long) -> CURLcode;
+    pub fn init_memory() -> *mut MemoryStruct;
+    pub fn init_headers() -> *mut HeaderStruct;
+    pub fn free_memory(mem: *mut MemoryStruct);
+    pub fn free_headers(headers: *mut HeaderStruct);
+
+    // 声明回调函数
+    pub fn write_callback(ptr: *mut c_char, size: usize, nmemb: usize, userdata: *mut c_void) -> usize;
+    pub fn header_callback(ptr: *mut c_char, size: usize, nmemb: usize, userdata: *mut c_void) -> usize;
 
 
 
@@ -101,11 +109,18 @@ pub struct CurlResponse {
     pub headers: Arc<Mutex<Vec<String>>>,
     pub body: Arc<Mutex<Vec<u8>>>,
 }
+// 定义 C 结构体
+#[repr(C)]
+pub struct MemoryStruct {
+    pub data: *mut c_char,
+    pub size: usize,
+}
 
-/// 头回调函数
-
-
-/// 写回调函数
+#[repr(C)]
+pub struct HeaderStruct {
+    pub headers: *mut *mut c_char,
+    pub count: usize,
+}
 
 
 /// 定义一个辅助函数，用于设置字符串类型的 curl 选项

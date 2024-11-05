@@ -164,52 +164,6 @@ pub async fn start_forward_proxy(
     }
 }
 
-pub(crate) extern "C" fn header_callback(
-    ptr: *const c_char,
-    size: usize,
-    nmemb: usize,
-    userdata: *mut c_void,
-) -> usize {
-    let real_size = size * nmemb;
-    if userdata.is_null() {
-        return 0;
-    }
-
-    // 将 userdata 转换为 &Arc<Mutex<Vec<String>>>
-    let headers = unsafe { &*(userdata as *const Arc<Mutex<Vec<String>>>) };
-
-    // 从 ptr 创建 slice
-    let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, real_size) };
-    if let Ok(s) = std::str::from_utf8(slice) {
-        let header = s.trim_end_matches("\r\n").to_string();
-        let mut headers_lock = headers.lock().unwrap();
-        headers_lock.push(header);
-    }
-
-    real_size
-}
-pub(crate) extern "C" fn write_callback(
-    ptr: *const c_char,
-    size: usize,
-    nmemb: usize,
-    userdata: *mut c_void,
-) -> usize {
-    let real_size = size * nmemb;
-    if userdata.is_null() {
-        return 0;
-    }
-
-    // 将 userdata 转换为 &Arc<Mutex<Vec<u8>>>
-    let body = unsafe { &*(userdata as *const Arc<Mutex<Vec<u8>>>) };
-
-    // 从 ptr 创建 slice
-    let slice = unsafe { std::slice::from_raw_parts(ptr as *const u8, real_size) };
-
-    let mut body_lock = body.lock().unwrap();
-    body_lock.extend_from_slice(slice);
-
-    real_size
-}
 pub async fn handle_connection(
     mut local_stream: TcpStream,
     mapping: ForwardMapping,
@@ -276,11 +230,17 @@ pub async fn handle_connection(
         &[]
     };
 
-    // 初始化 CurlResponse 结构体
-    let response = CurlResponse {
-        headers: Arc::new(Mutex::new(Vec::new())),
-        body: Arc::new(Mutex::new(Vec::new())),
-    };
+    // 初始化 MemoryStruct 和 HeaderStruct
+    let mem_ptr = unsafe { init_memory() };
+    if mem_ptr.is_null() {
+        return Err("Failed to initialize MemoryStruct".into());
+    }
+
+    let headers_ptr = unsafe { init_headers() };
+    if headers_ptr.is_null() {
+        unsafe { free_memory(mem_ptr) };
+        return Err("Failed to initialize HeaderStruct".into());
+    }
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
     let (response_code, response_headers, response_data) = unsafe {
@@ -288,6 +248,8 @@ pub async fn handle_connection(
         let easy_handle = curl_easy_init();
         if easy_handle.is_null() {
             eprintln!("Failed to initialize CURL easy handle");
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
             return Err("CURL initialization failed".into());
         }
 
@@ -297,31 +259,37 @@ pub async fn handle_connection(
         }
 
         // 设置 URL
-        set_curl_option_string(easy_handle, CURLOPT_URL, &target_url)?;
+        let target_url_c = CString::new(target_url)?;
+        let res = curl_easy_setopt(easy_handle, CURLOPT_URL, target_url_c.as_ptr() as *const c_void);
+        if res.0 != CURLE_OK.0 {
+            eprintln!("curl_easy_setopt CURLOPT_URL failed: {}", res);
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
+            return Err(format!("curl_easy_setopt CURLOPT_URL failed: {}", res).into());
+        }
 
         // 设置 HTTP 方法
         if method.to_uppercase() != "GET" {
-            set_curl_option_string(easy_handle, CURLOPT_CUSTOMREQUEST, method)?;
+            let method_c = CString::new(method)?;
+            let res = curl_easy_setopt(easy_handle, CURLOPT_CUSTOMREQUEST, method_c.as_ptr() as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res);
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res).into());
+            }
         }
 
         // 设置请求体（仅当存在时）
         if !body.is_empty() {
-            let body_str = match std::str::from_utf8(body) {
-                Ok(s) => s,
-                Err(_) => {
-                    eprintln!("Invalid UTF-8 sequence in request body");
-                    return Err("Invalid request body".into());
-                }
-            };
-            set_curl_option_string(easy_handle, CURLOPT_POSTFIELDS, body_str)?;
-        }
-
-        // 设置模拟浏览器
-        let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
-        let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
-        if result.0 != CURLE_OK.0 {
-            eprintln!("Failed to impersonate browser: {}", result);
-            return Err("Impersonation failed".into());
+            let body_c = CString::new(body)?;
+            let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, body_c.as_ptr() as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res);
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res).into());
+            }
         }
 
         // 设置请求头
@@ -336,34 +304,69 @@ pub async fn handle_connection(
             header_list = curl_slist_append(header_list, c_header.as_ptr());
         }
         if !header_list.is_null() {
-            set_curl_option_void(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void)?;
+            let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
+                curl_slist_free_all(header_list);
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
+            }
         }
 
-        // **关键步骤**：正确传递 `userdata` 指针
-        // 1. Clone Arc to increase the reference count
-        let headers_arc = Arc::clone(&response.headers);
-        let body_arc = Arc::clone(&response.body);
-
-        // 2. Convert Arc pointers to raw pointers
-        let headers_ptr = Arc::into_raw(headers_arc) as *mut c_void;
-        let body_ptr = Arc::into_raw(body_arc) as *mut c_void;
-
-        eprintln!("设置回调1");
         // 设置写回调
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_WRITEFUNCTION,
-            write_callback as *const c_void,
-        )?;
+        eprintln!("设置回调1");
+        let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void);
+        if res.0 != CURLE_OK.0 {
+            eprintln!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res);
+            if !header_list.is_null() {
+                curl_slist_free_all(header_list);
+            }
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
+            return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
+        }
+        eprintln!("设置回调2");
+        let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void);
+        if res.0 != CURLE_OK.0 {
+            eprintln!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res);
+            if !header_list.is_null() {
+                curl_slist_free_all(header_list);
+            }
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
+            return Err(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res).into());
+        }
 
+        // 设置头回调
+        eprintln!("设置回调3");
+        let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERFUNCTION, header_callback as *const c_void);
+        if res.0 != CURLE_OK.0 {
+            eprintln!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res);
+            if !header_list.is_null() {
+                curl_slist_free_all(header_list);
+            }
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
+            return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
+        }
+        eprintln!("设置回调4");
+        let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void);
+        if res.0 != CURLE_OK.0 {
+            eprintln!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res);
+            if !header_list.is_null() {
+                curl_slist_free_all(header_list);
+            }
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
+            return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
+        }
 
         // 执行请求
-        eprintln!("执行请求");
         let res = curl_easy_perform(easy_handle);
-        eprintln!("请求执行结果: {:?}", res);
         if res.0 != CURLE_OK.0 {
             let error_str = if !curl_easy_strerror(res).is_null() {
-                let c_str = CStr::from_ptr(curl_easy_strerror(res) as *const c_char);
+                let c_str = CStr::from_ptr(curl_easy_strerror(res));
                 c_str.to_string_lossy().into_owned()
             } else {
                 "Unknown CURL error".to_string()
@@ -372,49 +375,54 @@ pub async fn handle_connection(
             if !header_list.is_null() {
                 curl_slist_free_all(header_list);
             }
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
             return Err(format!("CURL request failed: {}", error_str).into());
         }
-        eprintln!("请求执行成功");
 
         // 获取响应码
         let mut response_code: c_long = 0;
         let res = get_response_code(
-            easy_handle,
+            easy_handle as *mut CURL,
             &mut response_code as *mut c_long,
         );
-        eprintln!("获取响应码结果: {:?}", res);
         if res.0 != CURLE_OK.0 {
             eprintln!("Failed to get response code: {}", res);
             if !header_list.is_null() {
                 curl_slist_free_all(header_list);
             }
+            unsafe { free_memory(mem_ptr) };
+            unsafe { free_headers(headers_ptr) };
             return Err("CURL get info failed".into());
         }
 
         eprintln!("响应码: {}", response_code);
 
-        // 获取响应头部
-        let headers_lock = response.headers.lock().unwrap();
-        let response_headers = headers_lock.clone();
-        drop(headers_lock);
-
-        // 获取响应体
-        let body_lock = response.body.lock().unwrap();
-        let response_data = body_lock.clone();
-        drop(body_lock);
-
-        // 关闭 CURL
-        if !header_list.is_null() {
-            curl_slist_free_all(header_list);
+        // 读取响应头部
+        let headers_lock = (*headers_ptr).count;
+        let mut response_headers = Vec::new();
+        for i in 0..(*headers_ptr).count {
+            let header_ptr = (*headers_ptr).headers.offset(i as isize);
+            let header = CStr::from_ptr(*header_ptr).to_string_lossy().into_owned();
+            response_headers.push(header);
         }
 
-        // **重要**：在使用完 `Arc::into_raw` 转换的指针后，需要重新构建 `Arc` 以避免内存泄漏
-        // 注意：这假设在回调函数中不会持有对 `Arc` 的引用
-        let _headers = Arc::from_raw(headers_ptr as *const Mutex<Vec<String>>);
-        let _body = Arc::from_raw(body_ptr as *const Mutex<Vec<u8>>);
+        // 读取响应体
+        let response_body = if (*mem_ptr).size > 0 {
+            std::str::from_utf8(std::slice::from_raw_parts((*mem_ptr).data as *const u8, (*mem_ptr).size))
+                .unwrap_or("")
+                .as_bytes()
+                .to_vec()
+        } else {
+            Vec::new()
+        };
 
-        // 返回响应码、响应头部和响应体
-        (response_code as u32, response_headers, response_data)
+        // 释放 C 结构体内存
+        curl_slist_free_all(header_list);
+        free_memory(mem_ptr);
+        free_headers(headers_ptr);
+
+        (response_code as u32, response_headers, response_body)
     };
 
     eprintln!("原始响应数据: {:?}", String::from_utf8_lossy(&response_data));
