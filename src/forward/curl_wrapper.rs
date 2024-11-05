@@ -9,6 +9,7 @@ use std::ffi::CString;
 pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -> Result<(), Box<dyn Error>> {
     let c_value = CString::new(value)?;
     let res = unsafe { curl_easy_setopt(handle, option, c_value.as_ptr() as *const c_void) };
+    eprintln!("set_curl_option_string: res = {:?}", res);
     if res.0 != CURLE_OK.0 {
         return Err(format!("curl_easy_setopt failed: {}", res).into());
     }
@@ -17,6 +18,7 @@ pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -
 
 pub fn set_curl_option_void(handle: *mut c_void, option: c_int, value: *const c_void) -> Result<(), Box<dyn Error>> {
     let res = unsafe { curl_easy_setopt(handle, option, value) };
+    eprintln!("set_curl_option_void: res = {:?}", res);
     if res.0 != CURLE_OK.0 {
         return Err(format!("curl_easy_setopt failed: {}", res).into());
     }
