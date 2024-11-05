@@ -14,7 +14,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
-use crate::forward::curl_ffi::CURLcode::CURLE_OK;
+use crate::forward::curl_ffi::CURLE_OK;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
 #[derive(Clone)]
@@ -163,7 +163,8 @@ pub async fn start_forward_proxy(
 }
 
 /// 处理单个连接的异步函数
-async fn handle_connection(
+/// 处理单个连接的异步函数
+pub async fn handle_connection(
     mut local_stream: TcpStream,
     mapping: ForwardMapping,
     _timeout_duration: Duration,
@@ -272,7 +273,7 @@ async fn handle_connection(
         // 设置模拟浏览器
         let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
         let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
-        if result != CURLcode::CURLE_OK {
+        if result != CURLE_OK {
             eprintln!("Failed to impersonate browser: {}", result);
             return Err("Impersonation failed".into());
         }
@@ -318,7 +319,7 @@ async fn handle_connection(
 
         // 执行请求
         let res = curl_easy_perform(easy_handle);
-        if res != CURLcode::CURLE_OK {
+        if res != CURLE_OK {
             let error_str = if !curl_easy_strerror(res).is_null() {
                 let c_str = CStr::from_ptr(curl_easy_strerror(res) as *const c_char);
                 c_str.to_string_lossy().into_owned()
@@ -338,7 +339,7 @@ async fn handle_connection(
             easy_handle,
             &mut response_code as *mut c_long,
         );
-        if res != CURLcode::CURLE_OK {
+        if res != CURLE_OK {
             eprintln!("Failed to get response code: {}", res);
             if !header_list.is_null() {
                 curl_slist_free_all(header_list);
@@ -381,7 +382,6 @@ async fn handle_connection(
     let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
 
     // 添加必要的头部
-    let content_length = response_data.len();
     let connection = "Connection: close\r\n";
 
     // 合并所有部分
@@ -402,7 +402,7 @@ async fn handle_connection(
     // 在函数末尾添加 Ok(())
     Ok(())
 }
-
+/// 根据响应码获取状态文本
 fn get_status_text(code: u32) -> &'static str {
     match code {
         200 => "OK",
@@ -413,85 +413,4 @@ fn get_status_text(code: u32) -> &'static str {
         500 => "Internal Server Error",
         _ => "Unknown Status",
     }
-}
-
-/// 定义写回调函数
-extern "C" fn write_function(ptr: *mut u8, size: usize, nmemb: usize, userdata: *mut c_void) -> usize {
-    let real_size = size * nmemb;
-    if userdata.is_null() {
-        return 0;
-    }
-    let buffer = unsafe { &mut *(userdata as *mut Vec<u8>) };
-    let data = unsafe { std::slice::from_raw_parts(ptr, real_size) };
-    buffer.extend_from_slice(data);
-    real_size
-}
-
-/// 通过 HTTP 代理建立连接的函数
-async fn connect_via_http_proxy(
-    proxy_addr: SocketAddr,
-    target_addr: &str,
-) -> Result<TcpStream, Box<dyn std::error::Error>> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    let mut stream = TcpStream::connect(proxy_addr).await?;
-
-    let connect_request = format!(
-        "CONNECT {} HTTP/1.1\r\nHost: {}\r\n\r\n",
-        target_addr, target_addr
-    );
-
-    stream.write_all(connect_request.as_bytes()).await?;
-
-    let mut buf = [0u8; 4096];
-    let mut pos = 0;
-
-    // 读取代理服务器的响应
-    loop {
-        let n = stream.read(&mut buf[pos..]).await?;
-        if n == 0 {
-            return Err("Proxy server closed connection".into());
-        }
-        pos += n;
-
-        // 解析 HTTP 响应
-        let mut headers = [httparse::EMPTY_HEADER; 16];
-        let mut res = Response::new(&mut headers);
-        let status = res.parse(&buf[..pos]);
-
-        match status {
-            Ok(httparse::Status::Complete(_)) => {
-                if let Some(code) = res.code {
-                    if 200 <= code && code < 300 {
-                        // 连接成功
-                        return Ok(stream);
-                    } else {
-                        let response_str = String::from_utf8_lossy(&buf[..pos]);
-                        return Err(format!("Proxy returned error status {}: {}", code, response_str).into());
-                    }
-                } else {
-                    return Err("Failed to get response code from proxy".into());
-                }
-            }
-            Ok(httparse::Status::Partial) => {
-                // 继续读取
-                if pos >= buf.len() {
-                    return Err("Proxy response too large".into());
-                }
-                continue;
-            }
-            Err(e) => {
-                return Err(format!("Failed to parse proxy response: {}", e).into());
-            }
-        }
-    }
-}
-
-/// 通过 SOCKS5 代理建立连接的函数
-async fn connect_via_socks5_proxy(
-    proxy_addr: SocketAddr,
-    target_addr: &str,
-) -> Result<TcpStream, Box<dyn std::error::Error>> {
-    let stream = Socks5Stream::connect(proxy_addr, target_addr).await?;
-    Ok(stream.into_inner())
 }
