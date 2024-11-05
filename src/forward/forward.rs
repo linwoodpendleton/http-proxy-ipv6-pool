@@ -308,27 +308,7 @@ pub async fn handle_connection(
             CURLOPT_WRITEFUNCTION,
             write_callback as *const c_void,
         )?;
-        eprintln!("设置回调2");
 
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_WRITEDATA,
-            body_ptr,
-        )?;
-        eprintln!("设置回调3");
-
-        // 设置头回调
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_HEADERFUNCTION,
-            header_callback as *const c_void,
-        )?;
-        eprintln!("设置回调4");
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_HEADERDATA,
-            headers_ptr,
-        )?;
 
         // 执行请求
         eprintln!("执行请求");
