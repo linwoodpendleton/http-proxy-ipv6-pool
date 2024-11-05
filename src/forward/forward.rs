@@ -292,36 +292,10 @@ pub async fn handle_connection(
         if !header_list.is_null() {
             set_curl_option_void(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void)?;
         }
-        eprintln!("设置回调1");
-        // 设置写回调
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_WRITEFUNCTION,
-            write_callback as *const c_void,
-        )?;
-        eprintln!("设置回调2");
 
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_WRITEDATA,
-            Arc::as_ptr(&response.body) as *mut c_void,
-        )?;
-        eprintln!("设置回调3");
-
-        // 设置头回调
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_HEADERFUNCTION,
-            header_callback as *const c_void,
-        )?;
-        eprintln!("设置回调4");
-        set_curl_option_void(
-            easy_handle,
-            CURLOPT_HEADERDATA,
-            Arc::as_ptr(&response.headers) as *mut c_void,
-        )?;
 
         // 执行请求
+
         let res = curl_easy_perform(easy_handle);
         if res != CURLE_OK {
             let error_str = if !curl_easy_strerror(res).is_null() {
