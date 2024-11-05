@@ -1,44 +1,50 @@
 // src/forward/curl_ffi.rs
 
 use libc::{c_char, c_int, c_long, c_void};
-use std::ffi::CString;
+use std::ffi::CStr;
 use std::fmt;
 use std::error::Error;
 use std::sync::{Arc, Mutex};
 
-// 定义 CURL 类型为不透明类型
-pub type CURL = c_void;
+/// 定义 CURL 类型为不透明类型
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CURL(pub c_void);
 
-// 定义 CURLINFO 类型
+/// 定义 CURLINFO 类型
 pub type CURLINFO = c_int;
 
-// 定义 CURLcode 类型为 c_int，并使用常量代替枚举
-pub type CURLcode = c_int;
+/// 定义 CURLcode 类型为新的元组结构体
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CURLcode(pub c_int);
 
 // 定义 CURLcode 常量
-pub const CURLE_OK: CURLcode = 0;
-pub const CURLE_UNSUPPORTED_PROTOCOL: CURLcode = 1;
-pub const CURLE_FAILED_INIT: CURLcode = 2;
-// 根据需要添加更多的 CURLcode 常量
-// 参考 curl.h 中的定义，例如:
-// pub const CURLE_URL_MALFORMAT: CURLcode = 3;
-// ...
+pub const CURLE_OK: CURLcode = CURLcode(0);
+pub const CURLE_UNSUPPORTED_PROTOCOL: CURLcode = CURLcode(1);
+pub const CURLE_FAILED_INIT: CURLcode = CURLcode(2);
+// 根据需要添加更多的 CURLcode 常量，参考 curl.h 中的定义
+// pub const CURLE_URL_MALFORMAT: CURLcode = CURLcode(3);
+// pub const CURLE_NOT_BUILT_IN: CURLcode = CURLcode(4);
+// ... 继续添加其他必要的常量
 
-// 实现 Display trait 用于 CURLcode
+// 实现 Display trait for CURLcode
 impl fmt::Display for CURLcode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let description = match self {
-            CURLE_OK => "CURLE_OK",
-            CURLE_UNSUPPORTED_PROTOCOL => "CURLE_UNSUPPORTED_PROTOCOL",
-            CURLE_FAILED_INIT => "CURLE_FAILED_INIT",
+        let description = match self.0 {
+            0 => "CURLE_OK",
+            1 => "CURLE_UNSUPPORTED_PROTOCOL",
+            2 => "CURLE_FAILED_INIT",
             // 根据需要为其他 CURLcode 提供描述
+            // 3 => "CURLE_URL_MALFORMAT",
+            // 4 => "CURLE_NOT_BUILT_IN",
             _ => "Unknown CURLcode",
         };
         write!(f, "{}", description)
     }
 }
 
-// 实现 Error trait 用于 CURLcode
+// 实现 Error trait for CURLcode
 impl Error for CURLcode {}
 
 /// FFI 绑定到 libcurl 和 libcurl-impersonate 的函数
@@ -75,7 +81,7 @@ extern "C" {
     pub fn curl_slist_free_all(list: *mut c_void);
 
     /// 包装函数，用于获取响应码
-    pub fn get_response_code(curl: *mut CURL, response_code: *mut c_long) -> CURLcode;
+    pub fn get_response_code(curl: *mut c_void, response_code: *mut c_long) -> CURLcode;
 }
 
 /// 定义 curl_easy_setopt 的选项常量
@@ -89,9 +95,11 @@ pub const CURLOPT_HEADERFUNCTION: c_int = 20079;
 pub const CURLOPT_HEADERDATA: c_int = 10029;
 
 /// 定义 curl_easy_getinfo 的选项常量
-pub const CURLINFO_RESPONSE_CODE: c_int = 2097164; // 请根据实际情况确认值
+pub const CURLINFO_RESPONSE_CODE: c_int = 2097164; // 请根据实际情况确认值，通常为 CURLINFO_RESPONSE_CODE
 
 /// 定义一个结构体来存储响应头部和响应体
+// **建议**：将 `CurlResponse` 结构体移出 FFI 绑定文件，放到主代码模块中（例如 `forward.rs`）
+// 这样可以保持 FFI 绑定文件的清洁和专注
 pub struct CurlResponse {
     pub headers: Arc<Mutex<Vec<String>>>,
     pub body: Arc<Mutex<Vec<u8>>>,
@@ -151,7 +159,7 @@ pub(crate) extern "C" fn write_callback(
 pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -> Result<(), Box<dyn Error>> {
     let c_value = CString::new(value)?;
     let res = unsafe { curl_easy_setopt(handle, option, c_value.as_ptr() as *const c_void) };
-    if res != CURLE_OK {
+    if res != CURLE_OK.0 {
         return Err(format!("curl_easy_setopt failed: {}", res).into());
     }
     Ok(())
@@ -160,7 +168,7 @@ pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -
 /// 定义一个辅助函数，用于设置 void 指针类型的 curl 选项
 pub fn set_curl_option_void(handle: *mut c_void, option: c_int, value: *const c_void) -> Result<(), Box<dyn Error>> {
     let res = unsafe { curl_easy_setopt(handle, option, value) };
-    if res != CURLE_OK {
+    if res != CURLE_OK.0 {
         return Err(format!("curl_easy_setopt failed: {}", res).into());
     }
     Ok(())

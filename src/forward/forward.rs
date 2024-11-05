@@ -14,6 +14,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
+use scopeguard::defer;
 use crate::forward::curl_ffi::CURLE_OK;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
@@ -122,47 +123,6 @@ fn is_allowed_ip(
 }
 
 /// 启动转发代理的异步函数
-pub async fn start_forward_proxy(
-    mapping: ForwardMapping,
-    ipv6_subnets: Arc<Vec<Ipv6Cidr>>,
-    ipv4_subnets: Arc<Vec<Ipv4Cidr>>,
-    allowed_ips: Option<Vec<IpAddr>>,
-    timeout_duration: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let listener = TcpListener::bind(mapping.local_addr).await?;
-    println!("Listening on {}", mapping.local_addr);
-
-    loop {
-        let (local_stream, client_addr) = listener.accept().await?;
-        let mapping = mapping.clone();
-        let ipv6_subnets = Arc::clone(&ipv6_subnets);
-        let ipv4_subnets = Arc::clone(&ipv4_subnets);
-        let allowed_ips = allowed_ips.clone();
-
-        // 检查客户端 IP 是否在允许的范围内
-        if !is_allowed_ip(
-            &client_addr.ip(),
-            &*ipv6_subnets, // 解引用 Arc 并获取引用
-            &*ipv4_subnets,
-            &allowed_ips,
-        ) {
-            eprintln!("Connection from {} is not allowed", client_addr);
-            continue;
-        }
-
-        tokio::spawn(async move {
-            if let Err(e) = handle_connection(
-                local_stream,
-                mapping,
-                timeout_duration,
-            ).await {
-                eprintln!("Error handling connection from {}: {}", client_addr, e);
-            }
-        });
-    }
-}
-
-/// 处理单个连接的异步函数
 /// 处理单个连接的异步函数
 pub async fn handle_connection(
     mut local_stream: TcpStream,
@@ -246,7 +206,7 @@ pub async fn handle_connection(
         }
 
         // 使用 `scopeguard` 确保在函数结束时清理 CURL handle
-        scopeguard::defer! {
+        defer! {
             curl_easy_cleanup(easy_handle);
         }
 
