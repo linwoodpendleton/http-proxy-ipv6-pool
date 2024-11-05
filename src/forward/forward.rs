@@ -245,7 +245,7 @@ pub async fn handle_connection(
     }
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let (response_code, response_headers, response_data) = tokio::task::spawn_blocking(move ||  -> Result<(u32, Vec<String>, Vec<u8>), Box<dyn std::error::Error>> {
+    let (response_code, response_headers, response_data) = tokio::task::spawn_blocking(move || -> Result<(u32, Vec<String>, Vec<u8>), Box<dyn std::error::Error + Send>>  {
         // 初始化 CURL easy handle
         let easy_handle = unsafe { curl_easy_init() };
         if easy_handle.is_null() {
@@ -512,7 +512,7 @@ pub async fn handle_connection(
             curl_slist_free_all(header_list);
             free_memory(mem_ptr);
             free_headers(headers_ptr);
-            (response_code as u32, response_headers, response_body)
+            Ok((response_code as u32, response_headers, response_body))
         }
 
     }).await??;
