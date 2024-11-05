@@ -436,7 +436,7 @@ pub async fn handle_connection(
 
     // 合并所有部分，并确保有一个空行分隔头部和体
     let full_response = format!(
-        "{}{}\r\n\r\n",
+        "{}{}\r\n",
         status_line,
         ""
     );
