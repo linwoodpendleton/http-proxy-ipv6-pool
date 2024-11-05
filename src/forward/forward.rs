@@ -59,15 +59,6 @@ pub fn parse_forward_mapping(mapping_str: &str) -> Option<ForwardMapping> {
         // 分割代理地址列表
         let proxy_addr_list = parts[3]
             .split('|')
-            .filter_map(|addr_str| {
-                match addr_str.parse::<SocketAddr>() {
-                    Ok(addr) => Some(addr),
-                    Err(e) => {
-                        eprintln!("Invalid proxy address '{}': {}", addr_str, e);
-                        None
-                    }
-                }
-            })
             .collect::<Vec<_>>();
 
         if proxy_addr_list.is_empty() {
