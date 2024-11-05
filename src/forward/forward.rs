@@ -430,9 +430,9 @@ pub async fn handle_connection(
 
 
 
-    // 构建状态行
-    let status_text = get_status_text(response_code);
-    let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
+    // // 构建状态行
+    // let status_text = get_status_text(response_code);
+    // let status_line = format!("HTTP/1.1 {} {}\r\n", response_code, status_text);
 
     // 合并所有部分，并确保有一个空行分隔头部和体
     // let full_response = format!(
