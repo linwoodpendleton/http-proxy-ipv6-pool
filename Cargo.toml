@@ -41,3 +41,7 @@ codegen-units = 1
 rustflags = [
     "-C", "link-arg=-static",
 ]
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "link-arg=-static",
+]
