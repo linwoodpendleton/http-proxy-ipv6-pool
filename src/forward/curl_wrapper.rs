@@ -10,7 +10,7 @@ pub fn set_curl_option_string(handle: *mut c_void, option: c_int, value: &str) -
     let res = unsafe {
         curl_easy_setopt(handle, option, c_string.as_ptr() as *const c_void)
     };
-    if res == CURLcode::CURLE_OK {
+    if res == CURLE_OK {
         Ok(())
     } else {
         Err(res)
@@ -22,7 +22,7 @@ pub fn set_curl_option_void(handle: *mut c_void, option: c_int, value: *const c_
     let res = unsafe {
         curl_easy_setopt(handle, option, value)
     };
-    if res == CURLcode::CURLE_OK {
+    if res == CURLE_OK {
         Ok(())
     } else {
         Err(res)

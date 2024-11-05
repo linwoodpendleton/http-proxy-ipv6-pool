@@ -1,5 +1,6 @@
 // src/forward/forward.rs
 
+use std::error::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt}; // 导入 AsyncReadExt 和 AsyncWriteExt
 use super::curl_wrapper::{set_curl_option_string, set_curl_option_void};
 use super::curl_ffi::*;
@@ -14,7 +15,8 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
-use crate::forward::curl_ffi::CURLcode::CURLE_OK;
+use scopeguard::defer;
+use crate::forward::curl_ffi::CURLE_OK;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
 #[derive(Clone)]
@@ -161,14 +163,11 @@ pub async fn start_forward_proxy(
         });
     }
 }
-
-/// 处理单个连接的异步函数
-/// 处理单个连接的异步函数
 pub async fn handle_connection(
     mut local_stream: TcpStream,
     mapping: ForwardMapping,
     _timeout_duration: Duration,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     let client_addr = local_stream.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
@@ -246,7 +245,7 @@ pub async fn handle_connection(
         }
 
         // 使用 `scopeguard` 确保在函数结束时清理 CURL handle
-        scopeguard::defer! {
+        defer! {
             curl_easy_cleanup(easy_handle);
         }
 
@@ -273,7 +272,7 @@ pub async fn handle_connection(
         // 设置模拟浏览器
         let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
         let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
-        if result != CURLE_OK {
+        if result.0 != CURLE_OK.0 {
             eprintln!("Failed to impersonate browser: {}", result);
             return Err("Impersonation failed".into());
         }
@@ -293,11 +292,47 @@ pub async fn handle_connection(
             set_curl_option_void(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void)?;
         }
 
+        // **关键步骤**：正确传递 `userdata` 指针
+        // 1. Clone Arc to increase the reference count
+        let headers_arc = Arc::clone(&response.headers);
+        let body_arc = Arc::clone(&response.body);
+
+        // 2. Convert Arc pointers to raw pointers
+        let headers_ptr = Arc::into_raw(headers_arc) as *mut c_void;
+        let body_ptr = Arc::into_raw(body_arc) as *mut c_void;
+
+        eprintln!("设置回调1");
+        // 设置写回调
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_WRITEFUNCTION,
+            write_callback as *const c_void,
+        )?;
+        eprintln!("设置回调2");
+
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_WRITEDATA,
+            body_ptr,
+        )?;
+        eprintln!("设置回调3");
+
+        // 设置头回调
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_HEADERFUNCTION,
+            header_callback as *const c_void,
+        )?;
+        eprintln!("设置回调4");
+        set_curl_option_void(
+            easy_handle,
+            CURLOPT_HEADERDATA,
+            headers_ptr,
+        )?;
 
         // 执行请求
-
         let res = curl_easy_perform(easy_handle);
-        if res != CURLE_OK {
+        if res.0 != CURLE_OK.0 {
             let error_str = if !curl_easy_strerror(res).is_null() {
                 let c_str = CStr::from_ptr(curl_easy_strerror(res) as *const c_char);
                 c_str.to_string_lossy().into_owned()
@@ -317,7 +352,7 @@ pub async fn handle_connection(
             easy_handle,
             &mut response_code as *mut c_long,
         );
-        if res != CURLE_OK {
+        if res.0 != CURLE_OK.0 {
             eprintln!("Failed to get response code: {}", res);
             if !header_list.is_null() {
                 curl_slist_free_all(header_list);
@@ -341,6 +376,11 @@ pub async fn handle_connection(
         if !header_list.is_null() {
             curl_slist_free_all(header_list);
         }
+
+        // **重要**：在使用完 `Arc::into_raw` 转换的指针后，需要重新构建 `Arc` 以避免内存泄漏
+        // 注意：这假设在回调函数中不会持有对 `Arc` 的引用
+        let _headers = Arc::from_raw(headers_ptr as *const Mutex<Vec<String>>);
+        let _body = Arc::from_raw(body_ptr as *const Mutex<Vec<u8>>);
 
         // 返回响应码、响应头部和响应体
         (response_code as u32, response_headers, response_data)
@@ -380,6 +420,7 @@ pub async fn handle_connection(
     // 在函数末尾添加 Ok(())
     Ok(())
 }
+
 /// 根据响应码获取状态文本
 fn get_status_text(code: u32) -> &'static str {
     match code {
