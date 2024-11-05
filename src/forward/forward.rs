@@ -67,8 +67,8 @@ pub fn parse_forward_mapping(mapping_str: &str) -> Option<ForwardMapping> {
                     false
                 }
             })
+            .map(|s| s.to_string())  // 将 &str 转换为 String
             .collect();
-
 
 
         if proxy_addr_list.is_empty() {
