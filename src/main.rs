@@ -6,10 +6,10 @@ use cidr::{Ipv4Cidr, Ipv6Cidr};
 use getopts::Options;
 use proxy::start_proxy;
 use socks5::start_socks5_proxy;
-use std::{env, process::exit, net::IpAddr, net::SocketAddr};
+use std::{env, net::IpAddr, net::SocketAddr, process::exit};
 use std::sync::Arc;
 use std::time::Duration;
-use forward::{ parse_forward_mapping, start_forward_proxy};
+use forward::{parse_forward_mapping, start_forward_proxy};
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));

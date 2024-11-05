@@ -8,6 +8,7 @@ readme = "README.md"
 license = "MIT"
 homepage = "https://github.com/zu1k/http-proxy-ipv6-pool"
 repository = "https://github.com/zu1k/http-proxy-ipv6-pool"
+build = "build.rs"
 
 
 [dependencies]
@@ -25,6 +26,8 @@ webpki-roots = "0.26.6"
 tokio-native-tls = "0.3.1"
 native-tls = "0.2.12"
 httparse = "1.9.4"
+libc = "0.2"
+scopeguard = "1.2.0"
 
 
 
@@ -33,3 +36,8 @@ strip = true
 lto = true
 opt-level = "s"
 codegen-units = 1
+
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "link-arg=-static",
+]
