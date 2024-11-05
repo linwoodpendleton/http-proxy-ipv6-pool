@@ -11,8 +11,15 @@ fn main() {
             // Linux 特定的链接设置
             println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-linux-gnu/");
             println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
+            // 静态链接 libnghttp2、Brotli 和其他依赖库
+            println!("cargo:rustc-link-lib=static=nghttp2");
+            println!("cargo:rustc-link-lib=static=brotlidec");
+
+            // 静态链接 OpenSSL
             println!("cargo:rustc-link-lib=static=ssl");
             println!("cargo:rustc-link-lib=static=crypto");
+
+            // 静态链接其他系统库
             println!("cargo:rustc-link-lib=static=pthread");
             println!("cargo:rustc-link-lib=static=dl");
             println!("cargo:rustc-link-lib=static=z");
@@ -21,10 +28,17 @@ fn main() {
             // macOS 特定的链接设置
             println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-macos/");
             println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
+            // 静态链接 libnghttp2、Brotli 和其他依赖库
+            println!("cargo:rustc-link-lib=static=nghttp2");
+            println!("cargo:rustc-link-lib=static=brotlidec");
+
+            // 静态链接 OpenSSL
             println!("cargo:rustc-link-lib=static=ssl");
             println!("cargo:rustc-link-lib=static=crypto");
+
+            // 静态链接其他系统库
             println!("cargo:rustc-link-lib=static=pthread");
-            println!("cargo:rustc-link-lib=static=dl"); // 注意：macOS 上 libdl 可能不是必需的
+            println!("cargo:rustc-link-lib=static=dl");
             println!("cargo:rustc-link-lib=static=z");
         },
         other => {
