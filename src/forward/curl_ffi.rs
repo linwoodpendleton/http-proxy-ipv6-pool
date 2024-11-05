@@ -46,25 +46,25 @@ impl Error for CURLcode {}
 extern "C" {
     /// 通过 libcurl-impersonate 模拟浏览器
     pub fn curl_easy_impersonate(
-        data: *mut c_void,
+        data: *mut CURL,
         target: *const c_char,
         default_headers: c_int,
     ) -> CURLcode;
 
     /// 初始化 CURL easy handle
-    pub fn curl_easy_init() -> *mut c_void;
+    pub fn curl_easy_init() -> *mut CURL;
 
     /// 清理 CURL easy handle
-    pub fn curl_easy_cleanup(handle: *mut c_void);
+    pub fn curl_easy_cleanup(handle: *mut CURL);
 
     /// 设置 CURL easy handle 的选项
-    pub fn curl_easy_setopt(handle: *mut c_void, option: c_int, param: *const c_void) -> CURLcode;
+    pub fn curl_easy_setopt(handle: *mut CURL, option: c_int, param: *const c_void) -> CURLcode;
 
     /// 执行 CURL 请求
-    pub fn curl_easy_perform(handle: *mut c_void) -> CURLcode;
+    pub fn curl_easy_perform(handle: *mut CURL) -> CURLcode;
 
     /// 获取 CURL 请求的信息
-    pub fn curl_easy_getinfo(handle: *mut c_void, info: c_int, param: *mut c_long) -> CURLcode;
+    pub fn curl_easy_getinfo(handle: *mut CURL, info: c_int, param: *mut c_long) -> CURLcode;
 
     /// 获取 CURL 错误描述
     pub fn curl_easy_strerror(code: CURLcode) -> *const c_char;

@@ -281,31 +281,31 @@ pub async fn handle_connection(
             }
 
             // 设置代理类型
-            // match mapping.proxy_type {
-            //     ProxyType::Http => {
-            //         let proxy_type = CURLPROXY_HTTP as c_long;
-            //         let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
-            //         if res.0 != CURLE_OK.0 {
-            //             eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
-            //             unsafe { free_memory(mem_ptr) };
-            //             unsafe { free_headers(headers_ptr) };
-            //             return Err("Failed to set proxy type (HTTP)".into());
-            //         }
-            //     },
-            //     ProxyType::Socks5 => {
-            //         let proxy_type = CURLPROXY_SOCKS5 as c_long;
-            //         let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
-            //         if res.0 != CURLE_OK.0 {
-            //             eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
-            //             unsafe { free_memory(mem_ptr) };
-            //             unsafe { free_headers(headers_ptr) };
-            //             return Err("Failed to set proxy type (SOCKS5)".into());
-            //         }
-            //     },
-            //     ProxyType::None => {
-            //         // 不使用代理
-            //     },
-            // }
+            match mapping.proxy_type {
+                ProxyType::Http => {
+                    let proxy_type = CURLPROXY_HTTP as c_long;
+                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
+                    if res.0 != CURLE_OK.0 {
+                        eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
+                        unsafe { free_memory(mem_ptr) };
+                        unsafe { free_headers(headers_ptr) };
+                        return Err("Failed to set proxy type (HTTP)".into());
+                    }
+                },
+                ProxyType::Socks5 => {
+                    let proxy_type = CURLPROXY_SOCKS5 as c_long;
+                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
+                    if res.0 != CURLE_OK.0 {
+                        eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
+                        unsafe { free_memory(mem_ptr) };
+                        unsafe { free_headers(headers_ptr) };
+                        return Err("Failed to set proxy type (SOCKS5)".into());
+                    }
+                },
+                ProxyType::None => {
+                    // 不使用代理
+                },
+            }
 
             // 如果需要代理认证，设置用户名和密码
             // let proxy_user = CString::new("your_proxy_username").unwrap();
