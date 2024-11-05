@@ -25,7 +25,7 @@ pub struct ForwardMapping {
     pub local_addr: SocketAddr,
     pub remote_addr: String,
     pub sni_host: String,
-    pub proxy_addrs: Vec<SocketAddr>,
+    pub proxy_addrs: Vec<String>,
     pub proxy_type: ProxyType,
 }
 
@@ -57,7 +57,7 @@ pub fn parse_forward_mapping(mapping_str: &str) -> Option<ForwardMapping> {
 
     let proxy_addrs = if parts.len() >= 4 {
         // 分割代理地址列表
-        let proxy_addr_list: Vec<&str> = parts[3]
+        let proxy_addr_list: Vec<String> = parts[3]
             .split('|')
             .filter(|addr_str| {
                 if addr_str.contains(':') {
