@@ -333,12 +333,35 @@ async fn handle_connection(
 
         response_data
     };
+    let response_code = 200;
+    // 构建 HTTP 响应
+    let response = format!(
+        "HTTP/1.1 {} {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        response_code,
+        get_status_text(response_code),
+        response_data.len()
+    );
 
-    // 将响应发送回客户端（在 unsafe 块之外，避免 `*mut c_void` 跨 await 使用）
+    // 发送 HTTP 响应头
+    local_stream.write_all(response.as_bytes()).await?;
+
+    // 发送响应体
     local_stream.write_all(&response_data).await?;
+
 
     // 在函数末尾添加 Ok(())
     Ok(())
+}
+fn get_status_text(code: u32) -> &'static str {
+    match code {
+        200 => "OK",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        403 => "Forbidden",
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        _ => "Unknown Status",
+    }
 }
 
 /// 定义写回调函数
