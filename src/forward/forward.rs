@@ -427,12 +427,6 @@ pub async fn handle_connection(
 
     eprintln!("原始响应数据: {:?}", String::from_utf8_lossy(&response_data));
 
-    // 构建完整的 HTTP 响应
-    let mut response_headers_formatted = String::new();
-    for header in response_headers.iter() {
-        response_headers_formatted.push_str(header);
-        response_headers_formatted.push_str("\r\n\r\n");
-    }
 
 
 
@@ -446,9 +440,22 @@ pub async fn handle_connection(
         status_line,
         ""
     );
-
     // 发送响应头部
     local_stream.write_all(full_response.as_bytes()).await?;
+
+    for header in response_headers.iter() {
+
+        // 合并所有部分，并确保有一个空行分隔头部和体
+        let head_response = format!(
+            "{}{}\r\n",
+            header,
+            ""
+        );
+        local_stream.write_all(full_response.as_bytes()).await?;
+
+    }
+
+
 
     // 发送响应体
     local_stream.write_all(&response_data).await?;
