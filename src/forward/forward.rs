@@ -15,6 +15,7 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
+use rand::seq::SliceRandom;
 use scopeguard::defer;
 use crate::forward::curl_ffi::CURLE_OK;
 
@@ -270,7 +271,10 @@ pub async fn handle_connection(
         // 设置代理（如果存在）
         if !mapping.proxy_addrs.is_empty() {
             // 设置代理地址
-            let proxy_addr = mapping.proxy_addrs[0].to_string(); // 选择第一个代理地址
+            let mut rng = rand::thread_rng();
+            let proxy_addr = mapping.proxy_addrs.choose(&mut rng)
+                .expect("No proxy addresses available")
+                .to_string(); // 随机选择一个代理地址并转换为字符串
             let proxy_c = CString::new(proxy_addr).unwrap();
             let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
             if res.0 != CURLE_OK.0 {
