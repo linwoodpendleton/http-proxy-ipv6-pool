@@ -283,8 +283,8 @@ pub async fn handle_connection(
             // 设置代理类型
             match mapping.proxy_type {
                 ProxyType::Http => {
-                    let proxy_type = CURLPROXY_HTTP as c_long;
-                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
+                    let proxy_type = CURLPROXY_HTTP;
+                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, proxy_type as  c_long as *const c_void);
                     if res.0 != CURLE_OK.0 {
                         eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
                         unsafe { free_memory(mem_ptr) };
@@ -293,8 +293,8 @@ pub async fn handle_connection(
                     }
                 },
                 ProxyType::Socks5 => {
-                    let proxy_type = CURLPROXY_SOCKS5 as c_long;
-                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, &proxy_type as *const c_long as *const c_void);
+                    let proxy_type = CURLPROXY_SOCKS5 ;
+                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, proxy_type as c_long as *const c_void);
                     if res.0 != CURLE_OK.0 {
                         eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
                         unsafe { free_memory(mem_ptr) };
