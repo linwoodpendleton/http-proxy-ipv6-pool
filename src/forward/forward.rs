@@ -58,8 +58,7 @@ pub fn parse_forward_mapping(mapping_str: &str) -> Option<ForwardMapping> {
     let proxy_addrs = if parts.len() >= 4 {
         // 分割代理地址列表
         let proxy_addr_list = parts[3]
-            .split('|')
-            .collect::<Vec<_>>();
+            .split('|');
 
         if proxy_addr_list.is_empty() {
             eprintln!("No valid proxy addresses in mapping '{}'", mapping_str);
