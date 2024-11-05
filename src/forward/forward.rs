@@ -431,15 +431,10 @@ pub async fn handle_connection(
     let mut response_headers_formatted = String::new();
     for header in response_headers.iter() {
         response_headers_formatted.push_str(header);
-        response_headers_formatted.push_str("\r\n");
+        response_headers_formatted.push_str("\r\n\r\n");
     }
 
-    // 添加必要的头部，如 Content-Length
-    let content_length = response_data.len();
-    response_headers_formatted.push_str(&format!("Content-Length: {}\r\n", content_length));
 
-    // 添加 Connection: close
-    response_headers_formatted.push_str("Connection: close\r\n");
 
     // 构建状态行
     let status_text = get_status_text(response_code);
@@ -447,9 +442,8 @@ pub async fn handle_connection(
 
     // 合并所有部分，并确保有一个空行分隔头部和体
     let full_response = format!(
-        "{}{}{}\r\n",
+        "{}{}\r\n\r\n",
         status_line,
-        response_headers_formatted,
         ""
     );
 
