@@ -284,7 +284,7 @@ pub async fn handle_connection(
                     eprintln!("curl_easy_setopt CURLOPT_PROXY failed: {}", res);
                     unsafe { free_memory(mem_ptr) };
                     unsafe { free_headers(headers_ptr) };
-                    return Err(Box::<dyn std::error::Error + Send>::from("Failed to set proxy".to_string()));
+                    return Err("Failed to set proxy".into());
                 }
 
                 // 设置代理类型
@@ -296,7 +296,7 @@ pub async fn handle_connection(
                             eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
                             unsafe { free_memory(mem_ptr) };
                             unsafe { free_headers(headers_ptr) };
-                            return Err(Box::<dyn std::error::Error + Send>::from("Failed to set proxy type (HTTP)".to_string()));
+                            return Err("Failed to set proxy type (HTTP)".into());
                         }
                     },
                     ProxyType::Socks5 => {
@@ -306,8 +306,7 @@ pub async fn handle_connection(
                             eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
                             unsafe { free_memory(mem_ptr) };
                             unsafe { free_headers(headers_ptr) };
-                            return Err(Box::<dyn std::error::Error + Send>::from("Failed to set proxy type (SOCKS5)".to_string()));
-
+                            return Err("Failed to set proxy type (SOCKS5)".into());
                         }
                     },
                     ProxyType::None => {
@@ -377,8 +376,7 @@ pub async fn handle_connection(
         let result = unsafe { curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1) };
         if result.0 != CURLE_OK.0 {
             eprintln!("Failed to impersonate browser: {}", result);
-            return Err(Box::<dyn std::error::Error + Send>::from("Impersonation failed".to_string()));
-
+            return Err("Impersonation failed".into());
         }
         // 设置请求头
         let mut header_list = ptr::null_mut();
@@ -398,7 +396,7 @@ pub async fn handle_connection(
                     curl_slist_free_all(header_list);
                     unsafe { free_memory(mem_ptr) };
                     unsafe { free_headers(headers_ptr) };
-                    return Err(Box::<dyn std::error::Error + Send>::from(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res)));
+                    return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
                 }
             }
         }
@@ -413,8 +411,7 @@ pub async fn handle_connection(
             }
             unsafe { free_memory(mem_ptr) };
             unsafe { free_headers(headers_ptr) };
-            return Err(Box::<dyn std::error::Error + Send>::from(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res)));
-
+            return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
         }
         // eprintln!("设置回调2");
         let res = unsafe { curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void) };
@@ -425,8 +422,7 @@ pub async fn handle_connection(
             }
             unsafe { free_memory(mem_ptr) };
             unsafe { free_headers(headers_ptr) };
-
-            return Err(Box::<dyn std::error::Error + Send>::from(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res)));
+            return Err(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res).into());
         }
 
         // 设置头回调
@@ -439,7 +435,7 @@ pub async fn handle_connection(
             }
             unsafe { free_memory(mem_ptr) };
             unsafe { free_headers(headers_ptr) };
-            return Err(Box::<dyn std::error::Error + Send>::from(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res)));
+            return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
         }
         // eprintln!("设置回调4");
         let res = unsafe { curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void) };
@@ -450,7 +446,7 @@ pub async fn handle_connection(
             }
             unsafe { free_memory(mem_ptr) };
             unsafe { free_headers(headers_ptr) };
-            return Err(Box::<dyn std::error::Error + Send>::from(format!("curl_easy_setopt CURLOPT_HEADERDATA failed:{}", res)));
+            return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
         }
 
         // 执行请求
@@ -469,7 +465,7 @@ pub async fn handle_connection(
                 }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
-                return Err(Box::<dyn std::error::Error + Send>::from(format!("CURL request failed: {}", error_str)));
+                return Err(format!("CURL request failed: {}", error_str).into());
             }
         }
 
@@ -488,7 +484,7 @@ pub async fn handle_connection(
             }
             unsafe { free_memory(mem_ptr) };
             unsafe { free_headers(headers_ptr) };
-            return Err(Box::<dyn std::error::Error + Send>::from("Failed to get response code".to_string()));
+            return Err("CURL get info failed".into());
         }
 
         eprintln!("响应码: {}", response_code);
