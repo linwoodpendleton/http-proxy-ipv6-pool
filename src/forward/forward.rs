@@ -331,7 +331,9 @@ pub async fn handle_connection(
         )?;
 
         // 执行请求
+        eprintln!("执行请求");
         let res = curl_easy_perform(easy_handle);
+        eprintln!("请求执行结果: {:?}", res);
         if res.0 != CURLE_OK.0 {
             let error_str = if !curl_easy_strerror(res).is_null() {
                 let c_str = CStr::from_ptr(curl_easy_strerror(res) as *const c_char);
@@ -345,6 +347,7 @@ pub async fn handle_connection(
             }
             return Err(format!("CURL request failed: {}", error_str).into());
         }
+        eprintln!("请求执行成功");
 
         // 获取响应码
         let mut response_code: c_long = 0;
@@ -352,6 +355,7 @@ pub async fn handle_connection(
             easy_handle,
             &mut response_code as *mut c_long,
         );
+        eprintln!("获取响应码结果: {:?}", res);
         if res.0 != CURLE_OK.0 {
             eprintln!("Failed to get response code: {}", res);
             if !header_list.is_null() {
