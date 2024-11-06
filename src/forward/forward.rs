@@ -166,21 +166,21 @@ pub async fn start_forward_proxy(
 
 
 pub async fn handle_connection(
-    local_stream: Arc<Mutex<TcpStream>>,
+    local_stream2: Arc<Mutex<TcpStream>>,
     mapping: ForwardMapping,
     _timeout_duration: Duration,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let client_addr = local_stream.lock().await.peer_addr()?;
+    let client_addr = local_stream2.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
     // Now `local_stream` access must be wrapped with `lock().await`
-    let mut locked_stream = local_stream.lock().await;
+    let mut locked_stream = local_stream2.lock().await;
 
     // 读取完整的 HTTP 请求（头部和请求体）
     let mut buffer = Vec::new();
     loop {
         let mut temp_buf = [0u8; 1024];
-        let n = local_stream.read(&mut temp_buf).await?;
+        let n = locked_stream.read(&mut temp_buf).await?;
         if n == 0 {
             break;
         }
@@ -514,7 +514,7 @@ pub async fn handle_connection(
             ""
         );
         // 发送响应头部
-        local_stream.write_all(full_response.as_bytes()).await?;
+        locked_stream.write_all(full_response.as_bytes()).await?;
 
         for header in response_headers.iter() {
             if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
@@ -526,14 +526,14 @@ pub async fn handle_connection(
                 header,
                 ""
             );
-            local_stream.write_all(head_response.as_bytes()).await?;
+            locked_stream.write_all(head_response.as_bytes()).await?;
 
         }
 
 
 
         // 发送响应体
-        local_stream.write_all(&response_body).await?;
+        locked_stream.write_all(&response_body).await?;
 
     };
 
