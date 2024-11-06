@@ -142,10 +142,9 @@ pub async fn start_forward_proxy(
         let ipv6_subnets = Arc::clone(&ipv6_subnets);
         let ipv4_subnets = Arc::clone(&ipv4_subnets);
         let allowed_ips = allowed_ips.clone();
-
-        // Wrap `local_stream` in Arc<Mutex<>> to make it Send + Sync
         let local_stream = Arc::new(Mutex::new(local_stream));
 
+        // 检查客户端 IP 是否在允许的范围内
         if !is_allowed_ip(
             &client_addr.ip(),
             &*ipv6_subnets,
@@ -156,21 +155,25 @@ pub async fn start_forward_proxy(
             continue;
         }
 
-        tokio::spawn(async move {
-            let local_stream = local_stream.clone(); // Clone Arc to move into async block
-            if let Err(e) = handle_connection(local_stream, mapping, timeout_duration).await {
-                eprintln!("Error handling connection from {}: {}", client_addr, e);
+        // 在 tokio::spawn 外获取 client_addr，避免移动进 async move
+        tokio::spawn({
+            let local_stream = local_stream.clone();
+            async move {
+                if let Err(e) = handle_connection(local_stream, mapping, timeout_duration).await {
+                    eprintln!("Error handling connection from {}: {}", client_addr, e);
+                }
             }
         });
     }
 }
 
 
+
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
     mapping: ForwardMapping,
     _timeout_duration: Duration,
-) -> Result<(), Box<dyn Error + Send + Sync>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client_addr = local_stream.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
