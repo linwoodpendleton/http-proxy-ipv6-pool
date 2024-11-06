@@ -176,7 +176,7 @@ pub async fn start_forward_proxy(
 }
 
 
-fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, std::collections::HashMap<String, String>), Box<dyn std::error::Error>> {
+fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -189,7 +189,7 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, std::collectio
     // Extract method, path, and headers into owned types
     let method = req.method.unwrap_or("").to_string();
     let path = req.path.unwrap_or("").to_string();
-    let mut headers_map = std::collections::HashMap::new();
+    let mut headers_map = HashMap::new();
 
     for header in req.headers.iter() {
         headers_map.insert(
