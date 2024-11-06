@@ -565,25 +565,11 @@ pub async fn handle_connection(
 
     // Calculate the length of the response body
     let content_length = response_body.len();
-    eprintln!("响应体大小: {}", content_length);
-    // Update Content-Length header in response_headers
-    let mut updated_headers = Vec::new();
-    let mut content_length_set = false;
+    // eprintln!("响应体大小: {}", content_length);
+
+
+
     for header in response_headers.iter() {
-        if header.to_lowercase().starts_with("content-length:") {
-            updated_headers.push(format!("Content-Length: {}\r\n", content_length));
-            content_length_set = true;
-        } else {
-            updated_headers.push(header.clone());
-        }
-    }
-
-    // If no Content-Length header was found, add it
-    if !content_length_set {
-        updated_headers.push(format!("Content-Length: {}", content_length));
-    }
-
-    for header in updated_headers.iter() {
         if header.starts_with("HTTP/1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
             continue;
         }
@@ -593,7 +579,13 @@ pub async fn handle_connection(
             header,
             ""
         );
-        locked_stream.write_all(head_response.as_bytes()).await?;
+        if header.to_lowercase().starts_with("content-length:") {
+            let contentLength = format!("Content-Length: {}\r\n", content_length);
+            locked_stream.write_all(contentLength.as_bytes()).await?;
+        }else {
+            locked_stream.write_all(head_response.as_bytes()).await?;
+        }
+
 
     }
 
