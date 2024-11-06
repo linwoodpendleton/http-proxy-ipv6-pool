@@ -20,6 +20,7 @@ use std::ptr;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
 use tokio::task;
+use regex::Regex;
 use crate::forward::curl_ffi::CURLE_OK;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
@@ -419,9 +420,20 @@ pub async fn handle_connection(
             let mut header_list = ptr::null_mut();
             for (key, value) in headers_map.iter() {
                 // 忽略一些自动设置的头部
-                if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt"){
+                if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
                     continue;
                 }
+                if key.to_lowercase().starts_with("referer"){
+                    let re = Regex::new(r"https://[^/]+").unwrap();
+                    let result = re.replace(value, "https://test.com");
+                    let header = format!("{}: {}", key, result);
+                    eprintln!("header {}",header);
+                    let c_header = CString::new(header).unwrap();
+                    header_list = curl_slist_append(header_list, c_header.as_ptr());
+                    continue
+                }
+
+
                 let header = format!("{}: {}", key, value);
                 eprintln!("header {}",header);
                 let c_header = CString::new(header).unwrap();

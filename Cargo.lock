@@ -359,6 +359,7 @@ dependencies = [
  "libc",
  "native-tls",
  "rand",
+ "regex",
  "scopeguard",
  "socks",
  "tokio",
