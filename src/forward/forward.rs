@@ -556,19 +556,19 @@ pub async fn handle_connection(
 
 
     // 合并所有部分，并确保有一个空行分隔头部和体
-    let full_response = format!(
-        "{}{}",
-        status_line,
-        ""
-    );
+    // let full_response = format!(
+    //     "{}{}",
+    //     status_line,
+    //     ""
+    // );
     let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
-    // 发送响应头部
-    locked_stream.write_all(full_response.as_bytes()).await?;
+    // // 发送响应头部
+    // locked_stream.write_all(full_response.as_bytes()).await?;
 
     for header in response_headers.iter() {
-        if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
-            continue;
-        }
+        // if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
+        //     continue;
+        // }
         // 合并所有部分，并确保有一个空行分隔头部和体
         let head_response = format!(
             "{}{}",
