@@ -155,11 +155,13 @@ pub async fn start_forward_proxy(
         }
 
         tokio::spawn(async move {
-            if let Err(e) = handle_connection(
+            if let Err(e) = Box::pin(handle_connection(
                 local_stream,
                 mapping,
                 timeout_duration,
-            ).await {
+            ))
+                .await
+            {
                 eprintln!("Error handling connection from {}: {}", client_addr, e);
             }
         });
