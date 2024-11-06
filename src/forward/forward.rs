@@ -213,8 +213,8 @@ pub async fn handle_connection(
     // 解析 HTTP 请求头部，缩小 `buffer` 的借用范围
     let status = {
         let buffer_ref = &buffer[..]; // 创建 `buffer` 的引用，以避免生命周期问题
-        req.parse(buffer_ref)?
-    };
+        req.parse(buffer_ref)
+    }?;
 
     if !matches!(status, httparse::Status::Complete(_)) {
         eprintln!("不完整的 HTTP 请求");
