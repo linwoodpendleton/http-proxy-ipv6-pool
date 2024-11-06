@@ -211,11 +211,7 @@ pub async fn handle_connection(
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
     // 解析 HTTP 请求头部，缩小 `buffer` 的借用范围
-    let status = {
-        let buffer_ref = &buffer[..]; // 创建 `buffer` 的引用，以避免生命周期问题
-        req.parse(buffer_ref)
-    }?;
-
+    let status = req.parse(&buffer)?;
     if !matches!(status, httparse::Status::Complete(_)) {
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
