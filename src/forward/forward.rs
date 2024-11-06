@@ -245,7 +245,7 @@ pub async fn handle_connection(
     }
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let (response_code, response_headers, response_data) = unsafe {
+    unsafe {
         // 初始化 CURL easy handle
         let easy_handle = curl_easy_init();
         if easy_handle.is_null() {
@@ -501,8 +501,38 @@ pub async fn handle_connection(
         curl_slist_free_all(header_list);
         free_memory(mem_ptr);
         free_headers(headers_ptr);
+        // // 构建状态行
+        let status_text = get_status_text(response_code as u32);
+        let status_line = format!("HTTP/1 {} {}", response_code, status_text);
 
-        (response_code as u32, response_headers, response_body)
+        // 合并所有部分，并确保有一个空行分隔头部和体
+        let full_response = format!(
+            "{}{}",
+            status_line,
+            ""
+        );
+        // 发送响应头部
+        local_stream.write_all(full_response.as_bytes()).await?;
+
+        for header in response_headers.iter() {
+            if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
+                continue;
+            }
+            // 合并所有部分，并确保有一个空行分隔头部和体
+            let head_response = format!(
+                "{}{}",
+                header,
+                ""
+            );
+            local_stream.write_all(head_response.as_bytes()).await?;
+
+        }
+
+
+
+        // 发送响应体
+        local_stream.write_all(&response_body).await?;
+
     };
 
 
@@ -510,37 +540,7 @@ pub async fn handle_connection(
 
 
 
-    // // 构建状态行
-    let status_text = get_status_text(response_code);
-    let status_line = format!("HTTP/2 {} {}", response_code, status_text);
 
-    // 合并所有部分，并确保有一个空行分隔头部和体
-    let full_response = format!(
-        "{}{}",
-        status_line,
-        ""
-    );
-    // 发送响应头部
-    local_stream.write_all(full_response.as_bytes()).await?;
-
-    for header in response_headers.iter() {
-        if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
-            continue;
-        }
-        // 合并所有部分，并确保有一个空行分隔头部和体
-        let head_response = format!(
-            "{}{}",
-            header,
-            ""
-        );
-        local_stream.write_all(head_response.as_bytes()).await?;
-
-    }
-
-
-
-    // 发送响应体
-    local_stream.write_all(&response_data).await?;
 
     // 在函数末尾添加 Ok(())
     Ok(())
