@@ -224,7 +224,7 @@ pub async fn handle_connection(
     let (method,path,headers_map) =  {
         let mut headers = [httparse::EMPTY_HEADER; 64];
         let mut req = Request::new(&mut headers);
-        req.parse(&buffer);
+        req.parse(&buffer)?;
         let method = req.method.unwrap_or("");
         let path = req.path.unwrap_or("");
         let mut headers_map = std::collections::HashMap::new();
