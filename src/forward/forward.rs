@@ -185,7 +185,7 @@ pub async fn handle_connection(
     let client_addr = local_stream.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
-    let mut locked_stream = local_stream.lock().await.peer_addr()?;
+    let mut locked_stream = local_stream.lock().await; // locked_stream 应该是 TcpStream 类型
 
     // 读取完整的 HTTP 请求（头部和请求体）
     let mut buffer = Vec::new();
