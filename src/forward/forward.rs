@@ -177,7 +177,7 @@ pub async fn start_forward_proxy(
 }
 
 
-fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>), Box<dyn Error + Send + Sync>> {
+fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>,Vec<u8>), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -198,8 +198,30 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
             String::from_utf8_lossy(header.value).to_string(),
         );
     }
+    let mut host = "";
 
-    Ok((method, path, headers_map))
+
+    if let Some(h) = headers_map.get("host") {
+        host = h;
+    }
+
+    let target_url = if path.starts_with("http://") || path.starts_with("https://") {
+        path.to_string()
+    } else {
+        format!("https://{}{}", host, path)
+    };
+
+    eprintln!("请求方法: {}, URL: {}", method, target_url);
+
+    // 提取请求体（如果存在）
+    let body_start = buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(0) + 4;
+    let body = if body_start < buffer.len() {
+        buffer[body_start..].to_vec() // 创建一个新的 Vec<u8>
+    } else {
+        Vec::new()
+    };
+
+    Ok((method, path, headers_map,body))
 }
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
@@ -245,30 +267,10 @@ pub async fn handle_connection(
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
-    let (method,path,headers_map) =  parse_http_request(buffer)?;;
-
-    let mut host = "";
+    let (method,path,headers_map,body) =  parse_http_request(buffer)?;;
 
 
-    if let Some(h) = headers_map.get("host") {
-        host = h;
-    }
 
-    let target_url = if path.starts_with("http://") || path.starts_with("https://") {
-        path.to_string()
-    } else {
-        format!("https://{}{}", host, path)
-    };
-
-    eprintln!("请求方法: {}, URL: {}", method, target_url);
-
-    // 提取请求体（如果存在）
-    let body_start = buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(0) + 4;
-    let body = if body_start < buffer.len() {
-        buffer[body_start..].to_vec() // 创建一个新的 Vec<u8>
-    } else {
-        Vec::new()
-    };
 
 
 
