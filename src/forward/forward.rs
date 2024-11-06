@@ -565,7 +565,27 @@ pub async fn handle_connection(
     // 发送响应头部
     locked_stream.write_all(full_response.as_bytes()).await?;
 
+    // Calculate the length of the response body
+    let content_length = response_body.len();
+
+    // Update Content-Length header in response_headers
+    let mut updated_headers = Vec::new();
+    let mut content_length_set = false;
     for header in response_headers.iter() {
+        if header.to_lowercase().starts_with("content-length:") {
+            updated_headers.push(format!("Content-Length: {}", content_length));
+            content_length_set = true;
+        } else {
+            updated_headers.push(header.clone());
+        }
+    }
+
+    // If no Content-Length header was found, add it
+    if !content_length_set {
+        updated_headers.push(format!("Content-Length: {}", content_length));
+    }
+
+    for header in updated_headers.iter() {
         if header.starts_with("HTTP/1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
             continue;
         }
