@@ -125,7 +125,6 @@ fn is_allowed_ip(
         IpAddr::V6(ipv6) => ipv6_subnets.iter().any(|subnet| subnet.contains(ipv6)),
     }
 }
-
 pub async fn start_forward_proxy(
     mapping: ForwardMapping,
     ipv6_subnets: Arc<Vec<Ipv6Cidr>>,
@@ -144,7 +143,6 @@ pub async fn start_forward_proxy(
         let allowed_ips = allowed_ips.clone();
         let local_stream = Arc::new(Mutex::new(local_stream));
 
-        // 检查客户端 IP 是否在允许的范围内
         if !is_allowed_ip(
             &client_addr.ip(),
             &*ipv6_subnets,
@@ -155,12 +153,13 @@ pub async fn start_forward_proxy(
             continue;
         }
 
-        // 在 tokio::spawn 外获取 client_addr，避免移动进 async move
+        // 在 `tokio::spawn` 外部引用 `client_addr`
+        let client_address = client_addr.clone();
         tokio::spawn({
             let local_stream = local_stream.clone();
             async move {
                 if let Err(e) = handle_connection(local_stream, mapping, timeout_duration).await {
-                    eprintln!("Error handling connection from {}: {}", client_addr, e);
+                    eprintln!("Error handling connection from {}: {}", client_address, e);
                 }
             }
         });
@@ -177,7 +176,6 @@ pub async fn handle_connection(
     let client_addr = local_stream.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
-    // Now `local_stream` access must be wrapped with `lock().await`
     let mut locked_stream = local_stream.lock().await;
 
     // 读取完整的 HTTP 请求（头部和请求体）
