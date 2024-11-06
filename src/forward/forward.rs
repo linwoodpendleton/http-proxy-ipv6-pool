@@ -166,15 +166,15 @@ pub async fn start_forward_proxy(
 
 
 pub async fn handle_connection(
-    local_stream2: Arc<Mutex<TcpStream>>,
+    local_stream: Arc<Mutex<TcpStream>>,
     mapping: ForwardMapping,
     _timeout_duration: Duration,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let client_addr = local_stream2.lock().await.peer_addr()?;
+    let client_addr = local_stream.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
     // Now `local_stream` access must be wrapped with `lock().await`
-    let mut locked_stream = local_stream2.lock().await;
+    let mut locked_stream = local_stream.lock().await;
 
     // 读取完整的 HTTP 请求（头部和请求体）
     let mut buffer = Vec::new();
