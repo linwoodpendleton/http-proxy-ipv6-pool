@@ -9,9 +9,10 @@ size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
     size_t real_size = size * nmemb;
     MemoryStruct *mem = (MemoryStruct *)userdata;
 
-    char *ptr_new = realloc(mem->data, mem->size + real_size + 1);
+    // Attempt to reallocate memory to hold the new data
+    char *ptr_new = realloc(mem->data, mem->size + real_size);
     if(ptr_new == NULL) {
-        // 内存不足
+        // Out of memory
         fprintf(stderr, "Not enough memory (realloc returned NULL)\n");
         return 0;
     }
@@ -19,11 +20,9 @@ size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
     mem->data = ptr_new;
     memcpy(&(mem->data[mem->size]), ptr, real_size);
     mem->size += real_size;
-    mem->data[mem->size] = 0;
 
     return real_size;
 }
-
 // 头回调函数，用于处理响应头部
 size_t header_callback(char *ptr, size_t size, size_t nmemb, void *userdata) {
     size_t real_size = size * nmemb;

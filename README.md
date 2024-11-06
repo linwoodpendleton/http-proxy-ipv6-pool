@@ -17,6 +17,14 @@
 
 # 编译说明。    
 ```shell
+gcc -c -o curl_callbacks.o curl_callbacks.c
+gcc -c -o curl_wrapper.o curl_wrapper.c
+ls
+ar rcs libcurl_wrapper.a curl_callbacks.o curl_wrapper.o
+mv libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
+mv curl_callbacks.o  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
+mv curl_wrapper.o  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
+mv libcurl_wrapper.a  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . "$HOME/.cargo/env"  # This loads the environment variables
 cargo build #debug
