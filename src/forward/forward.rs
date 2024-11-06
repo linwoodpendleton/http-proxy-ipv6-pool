@@ -527,7 +527,7 @@ pub async fn handle_connection(
             ""
         );
         // 发送响应头部
-        locked_stream.write_all(full_response.as_bytes()).await?;
+        locked_stream.write_all(full_response.as_bytes());
 
         for header in response_headers.iter() {
             if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
@@ -539,14 +539,14 @@ pub async fn handle_connection(
                 header,
                 ""
             );
-            locked_stream.write_all(head_response.as_bytes()).await?;
+            locked_stream.write_all(head_response.as_bytes());
 
         }
 
 
 
         // 发送响应体
-        locked_stream.write_all(&response_body).await?;
+        locked_stream.write_all(&response_body);
         Ok(())
         }
 
