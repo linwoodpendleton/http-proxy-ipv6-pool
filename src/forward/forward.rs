@@ -222,7 +222,7 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
         Vec::new()
     };
 
-    Ok((method, path, headers_map, body, target_url, host.parse().unwrap()))
+    Ok((method, path, headers_map,body,target_url,host.to_string()))
 }
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
