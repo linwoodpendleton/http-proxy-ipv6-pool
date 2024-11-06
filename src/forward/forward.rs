@@ -152,11 +152,19 @@ pub async fn start_forward_proxy(
             eprintln!("Connection from {} is not allowed", client_addr);
             continue;
         }
-
+        fn assert_send<T: Send>(_: T) {}
         // 在 `tokio::spawn` 外部引用 `client_addr`
         let client_address = client_addr.clone();
         tokio::spawn({
             let local_stream = local_stream.clone();
+            let mapping = mapping.clone();
+            let timeout_duration = timeout_duration.clone();
+            let client_address = client_address.clone();
+
+            assert_send(&local_stream);
+            assert_send(&mapping);
+            assert_send(timeout_duration);
+
             async move {
                 if let Err(e) = handle_connection(local_stream, mapping, timeout_duration).await {
                     eprintln!("Error handling connection from {}: {}", client_address, e);
