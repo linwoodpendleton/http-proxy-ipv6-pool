@@ -1,5 +1,6 @@
 // src/forward/forward.rs
 
+use std::collections::HashMap;
 use std::error::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt}; // 导入 AsyncReadExt 和 AsyncWriteExt
 use super::curl_wrapper::{set_curl_option_string, set_curl_option_void};
