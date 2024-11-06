@@ -185,19 +185,23 @@ pub async fn handle_connection(
     let client_addr = local_stream.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
 
-    let mut locked_stream = local_stream.lock().await; // locked_stream 应该是 TcpStream 类型
-
-    // 读取完整的 HTTP 请求（头部和请求体）
     let mut buffer = Vec::new();
     loop {
-        let mut temp_buf = [0u8; 1024];
-        let n = locked_stream.read(&mut temp_buf).await?;
+        let n = {
+            let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
+            let mut temp_buf = [0u8; 1024];
+            let n = locked_stream.read(&mut temp_buf).await?;
+            if n > 0 {
+                buffer.extend_from_slice(&temp_buf[..n]);
+            }
+            n
+        }; // `locked_stream` 在这里被释放
+
         if n == 0 {
             break;
         }
-        buffer.extend_from_slice(&temp_buf[..n]);
 
-        // 检查是否已经读取到请求头的结束（\r\n\r\n）
+        // 检查请求头是否读取完成
         if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
             break;
         }
@@ -248,7 +252,7 @@ pub async fn handle_connection(
 
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let result = task::spawn_blocking(move ||  {
+    let (response_code, response_headers, response_body) = task::spawn_blocking(move || -> Result<(String, Vec<String>, Vec<u8>), Box<dyn Error + Send + Sync>> {
         unsafe {
             // 初始化 MemoryStruct 和 HeaderStruct
             let mem_ptr =  init_memory() ;
@@ -516,38 +520,8 @@ pub async fn handle_connection(
             curl_slist_free_all(header_list);
             free_memory(mem_ptr);
             free_headers(headers_ptr);
-            // // 构建状态行
-            let status_text = get_status_text(response_code as u32);
-            let status_line = format!("HTTP/1 {} {}", response_code, status_text);
 
-            // 合并所有部分，并确保有一个空行分隔头部和体
-            let full_response = format!(
-                "{}{}",
-                status_line,
-                ""
-            );
-            // 发送响应头部
-            locked_stream.write_all(full_response.as_bytes());
-
-            for header in response_headers.iter() {
-                if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
-                    continue;
-                }
-                // 合并所有部分，并确保有一个空行分隔头部和体
-                let head_response = format!(
-                    "{}{}",
-                    header,
-                    ""
-                );
-                locked_stream.write_all(head_response.as_bytes());
-
-            }
-
-
-
-            // 发送响应体
-            locked_stream.write_all(&response_body);
-            Ok::<(), Box<dyn std::error::Error + Send + Sync>>(()) // 闭包返回一个 Result 类型
+            Ok((response_code, response_headers, response_body));
         }
 
     }).await??;
@@ -556,7 +530,38 @@ pub async fn handle_connection(
 
 
 
+    // // 构建状态行
+    let status_text = get_status_text(response_code as u32);
+    let status_line = format!("HTTP/1 {} {}", response_code, status_text);
 
+    // 合并所有部分，并确保有一个空行分隔头部和体
+    let full_response = format!(
+        "{}{}",
+        status_line,
+        ""
+    );
+    let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
+    // 发送响应头部
+    locked_stream.write_all(full_response.as_bytes());
+
+    for header in response_headers.iter() {
+        if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
+            continue;
+        }
+        // 合并所有部分，并确保有一个空行分隔头部和体
+        let head_response = format!(
+            "{}{}",
+            header,
+            ""
+        );
+        locked_stream.write_all(head_response.as_bytes());
+
+    }
+
+
+
+    // 发送响应体
+    locked_stream.write_all(&response_body);
 
 
     // 在函数末尾添加 Ok(())
