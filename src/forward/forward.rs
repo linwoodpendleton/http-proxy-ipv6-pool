@@ -261,293 +261,293 @@ pub async fn handle_connection(
                 unsafe { free_memory(mem_ptr) };
                 return Err("Failed to initialize HeaderStruct".into());
             }
-        // 初始化 CURL easy handle
-        let easy_handle = curl_easy_init();
-        if easy_handle.is_null() {
-            eprintln!("Failed to initialize CURL easy handle");
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err("CURL initialization failed".into());
-        }
-
-        // 使用 `scopeguard` 确保在函数结束时清理 CURL handle
-        defer! {
-            curl_easy_cleanup(easy_handle);
-        }
-
-        // 设置 URL
-        let target_url_c = CString::new(target_url)?;
-        let res = curl_easy_setopt(easy_handle, CURLOPT_URL, target_url_c.as_ptr() as *const c_void);
-        if res.0 != CURLE_OK.0 {
-            eprintln!("curl_easy_setopt CURLOPT_URL failed: {}", res);
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err(format!("curl_easy_setopt CURLOPT_URL failed: {}", res).into());
-        }
-        // 设置代理（如果存在）
-        if !mapping.proxy_addrs.is_empty() {
-            // 设置代理地址
-            let mut rng = rand::thread_rng();
-            let proxy_addr = mapping.proxy_addrs.choose(&mut rng)
-                .expect("No proxy addresses available")
-                .to_string(); // 随机选择一个代理地址并转换为字符串
-            let proxy_c = CString::new(proxy_addr).unwrap();
-            let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
-            if res.0 != CURLE_OK.0 {
-                eprintln!("curl_easy_setopt CURLOPT_PROXY failed: {}", res);
+            // 初始化 CURL easy handle
+            let easy_handle = curl_easy_init();
+            if easy_handle.is_null() {
+                eprintln!("Failed to initialize CURL easy handle");
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
-                return Err("Failed to set proxy".into());
+                return Err("CURL initialization failed".into());
             }
 
-            // 设置代理类型
-            match mapping.proxy_type {
-                ProxyType::Http => {
-                    let proxy_type = CURLPROXY_HTTP;
-                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, proxy_type as  c_long as *const c_void);
-                    if res.0 != CURLE_OK.0 {
-                        eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
-                        unsafe { free_memory(mem_ptr) };
-                        unsafe { free_headers(headers_ptr) };
-                        return Err("Failed to set proxy type (HTTP)".into());
-                    }
-                },
-                ProxyType::Socks5 => {
-                    let proxy_type = CURLPROXY_SOCKS5 ;
-                    let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, proxy_type as c_long as *const c_void);
-                    if res.0 != CURLE_OK.0 {
-                        eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
-                        unsafe { free_memory(mem_ptr) };
-                        unsafe { free_headers(headers_ptr) };
-                        return Err("Failed to set proxy type (SOCKS5)".into());
-                    }
-                },
-                ProxyType::None => {
-                    // 不使用代理
-                },
+            // 使用 `scopeguard` 确保在函数结束时清理 CURL handle
+            defer! {
+                curl_easy_cleanup(easy_handle);
             }
 
-            // 如果需要代理认证，设置用户名和密码
-            // let proxy_user = CString::new("your_proxy_username").unwrap();
-            // let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYUSERNAME, proxy_user.as_ptr() as *const c_void);
-            // if res.0 != CURLE_OK.0 {
-            //     eprintln!("curl_easy_setopt CURLOPT_PROXYUSERNAME failed: {}", res);
-            //     unsafe { free_memory(mem_ptr) };
-            //     unsafe { free_headers(headers_ptr) };
-            //     return Err("Failed to set proxy username".into());
-            // }
-
-            // let proxy_pass = CString::new("your_proxy_password").unwrap();
-            // let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYPASSWORD, proxy_pass.as_ptr() as *const c_void);
-            // if res.0 != CURLE_OK.0 {
-            //     eprintln!("curl_easy_setopt CURLOPT_PROXYPASSWORD failed: {}", res);
-            //     unsafe { free_memory(mem_ptr) };
-            //     unsafe { free_headers(headers_ptr) };
-            //     return Err("Failed to set proxy password".into());
-            // }
-        }
-        // 设置 HTTP 方法
-        if method.to_uppercase() != "GET" {
-            let method_c = CString::new(method)?;
-            let res = curl_easy_setopt(easy_handle, CURLOPT_CUSTOMREQUEST, method_c.as_ptr() as *const c_void);
+            // 设置 URL
+            let target_url_c = CString::new(target_url)?;
+            let res = curl_easy_setopt(easy_handle, CURLOPT_URL, target_url_c.as_ptr() as *const c_void);
             if res.0 != CURLE_OK.0 {
-                eprintln!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res);
+                eprintln!("curl_easy_setopt CURLOPT_URL failed: {}", res);
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
-                return Err(format!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res).into());
+                return Err(format!("curl_easy_setopt CURLOPT_URL failed: {}", res).into());
+            }
+            // 设置代理（如果存在）
+            if !mapping.proxy_addrs.is_empty() {
+                // 设置代理地址
+                let mut rng = rand::thread_rng();
+                let proxy_addr = mapping.proxy_addrs.choose(&mut rng)
+                    .expect("No proxy addresses available")
+                    .to_string(); // 随机选择一个代理地址并转换为字符串
+                let proxy_c = CString::new(proxy_addr).unwrap();
+                let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
+                if res.0 != CURLE_OK.0 {
+                    eprintln!("curl_easy_setopt CURLOPT_PROXY failed: {}", res);
+                    unsafe { free_memory(mem_ptr) };
+                    unsafe { free_headers(headers_ptr) };
+                    return Err("Failed to set proxy".into());
+                }
+
+                // 设置代理类型
+                match mapping.proxy_type {
+                    ProxyType::Http => {
+                        let proxy_type = CURLPROXY_HTTP;
+                        let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, proxy_type as  c_long as *const c_void);
+                        if res.0 != CURLE_OK.0 {
+                            eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (HTTP) failed: {}", res);
+                            unsafe { free_memory(mem_ptr) };
+                            unsafe { free_headers(headers_ptr) };
+                            return Err("Failed to set proxy type (HTTP)".into());
+                        }
+                    },
+                    ProxyType::Socks5 => {
+                        let proxy_type = CURLPROXY_SOCKS5 ;
+                        let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYTYPE, proxy_type as c_long as *const c_void);
+                        if res.0 != CURLE_OK.0 {
+                            eprintln!("curl_easy_setopt CURLOPT_PROXYTYPE (SOCKS5) failed: {}", res);
+                            unsafe { free_memory(mem_ptr) };
+                            unsafe { free_headers(headers_ptr) };
+                            return Err("Failed to set proxy type (SOCKS5)".into());
+                        }
+                    },
+                    ProxyType::None => {
+                        // 不使用代理
+                    },
+                }
+
+                // 如果需要代理认证，设置用户名和密码
+                // let proxy_user = CString::new("your_proxy_username").unwrap();
+                // let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYUSERNAME, proxy_user.as_ptr() as *const c_void);
+                // if res.0 != CURLE_OK.0 {
+                //     eprintln!("curl_easy_setopt CURLOPT_PROXYUSERNAME failed: {}", res);
+                //     unsafe { free_memory(mem_ptr) };
+                //     unsafe { free_headers(headers_ptr) };
+                //     return Err("Failed to set proxy username".into());
+                // }
+
+                // let proxy_pass = CString::new("your_proxy_password").unwrap();
+                // let res = curl_easy_setopt(easy_handle, CURLOPT_PROXYPASSWORD, proxy_pass.as_ptr() as *const c_void);
+                // if res.0 != CURLE_OK.0 {
+                //     eprintln!("curl_easy_setopt CURLOPT_PROXYPASSWORD failed: {}", res);
+                //     unsafe { free_memory(mem_ptr) };
+                //     unsafe { free_headers(headers_ptr) };
+                //     return Err("Failed to set proxy password".into());
+                // }
+            }
+            // 设置 HTTP 方法
+            if method.to_uppercase() != "GET" {
+                let method_c = CString::new(method)?;
+                let res = curl_easy_setopt(easy_handle, CURLOPT_CUSTOMREQUEST, method_c.as_ptr() as *const c_void);
+                if res.0 != CURLE_OK.0 {
+                    eprintln!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res);
+                    unsafe { free_memory(mem_ptr) };
+                    unsafe { free_headers(headers_ptr) };
+                    return Err(format!("curl_easy_setopt CURLOPT_CUSTOMREQUEST failed: {}", res).into());
+                }
+
             }
 
-        }
+            // 设置请求体（仅当存在时）
+            if !body.is_empty() {
 
-        // 设置请求体（仅当存在时）
-        if !body.is_empty() {
+                eprintln!("请求体大小: {}", body.len());
 
-            eprintln!("请求体大小: {}", body.len());
+                // 设置二进制数据为请求体
+                let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, body.as_ptr() as *const c_void);
+                if res.0 != CURLE_OK.0 {
+                    eprintln!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res);
+                    unsafe { free_memory(mem_ptr) };
+                    unsafe { free_headers(headers_ptr) };
+                    return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res).into());
+                }
 
-            // 设置二进制数据为请求体
-            let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDS, body.as_ptr() as *const c_void);
-            if res.0 != CURLE_OK.0 {
-                eprintln!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res);
-                unsafe { free_memory(mem_ptr) };
-                unsafe { free_headers(headers_ptr) };
-                return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDS failed: {}", res).into());
+                // 设置请求体的大小
+                let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDSIZE, body.len() as c_long as *const c_void);
+                if res.0 != CURLE_OK.0 {
+                    eprintln!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res);
+                    unsafe { free_memory(mem_ptr) };
+                    unsafe { free_headers(headers_ptr) };
+                    return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res).into());
+                }
             }
-
-            // 设置请求体的大小
-            let res = curl_easy_setopt(easy_handle, CURLOPT_POSTFIELDSIZE, body.len() as c_long as *const c_void);
-            if res.0 != CURLE_OK.0 {
-                eprintln!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res);
-                unsafe { free_memory(mem_ptr) };
-                unsafe { free_headers(headers_ptr) };
-                return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res).into());
+            let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
+            let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
+            if result.0 != CURLE_OK.0 {
+                eprintln!("Failed to impersonate browser: {}", result);
+                return Err("Impersonation failed".into());
             }
-        }
-        let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
-        let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
-        if result.0 != CURLE_OK.0 {
-            eprintln!("Failed to impersonate browser: {}", result);
-            return Err("Impersonation failed".into());
-        }
-        // 设置请求头
-        let mut header_list = ptr::null_mut();
-        for (key, value) in headers_map.iter() {
-            // 忽略一些自动设置的头部
+            // 设置请求头
+            let mut header_list = ptr::null_mut();
+            for (key, value) in headers_map.iter() {
+                // 忽略一些自动设置的头部
 
-            let header = format!("{}: {}", key, value);
-            // eprintln!("header {}",header);
-            let c_header = CString::new(header).unwrap();
-            header_list = curl_slist_append(header_list, c_header.as_ptr());
-        }
-        if !header_list.is_null() {
-            let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
-            if res.0 != CURLE_OK.0 {
-                eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
-                curl_slist_free_all(header_list);
-                unsafe { free_memory(mem_ptr) };
-                unsafe { free_headers(headers_ptr) };
-                return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
+                let header = format!("{}: {}", key, value);
+                // eprintln!("header {}",header);
+                let c_header = CString::new(header).unwrap();
+                header_list = curl_slist_append(header_list, c_header.as_ptr());
             }
-        }
-
-        // 设置写回调
-        // eprintln!("设置回调1");
-        let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void);
-        if res.0 != CURLE_OK.0 {
-            eprintln!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res);
             if !header_list.is_null() {
-                curl_slist_free_all(header_list);
+                let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
+                if res.0 != CURLE_OK.0 {
+                    eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
+                    curl_slist_free_all(header_list);
+                    unsafe { free_memory(mem_ptr) };
+                    unsafe { free_headers(headers_ptr) };
+                    return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
+                }
             }
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
-        }
-        // eprintln!("设置回调2");
-        let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void);
-        if res.0 != CURLE_OK.0 {
-            eprintln!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res);
-            if !header_list.is_null() {
-                curl_slist_free_all(header_list);
-            }
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res).into());
-        }
 
-        // 设置头回调
-        // eprintln!("设置回调3");
-        let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERFUNCTION, header_callback as *const c_void);
-        if res.0 != CURLE_OK.0 {
-            eprintln!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res);
-            if !header_list.is_null() {
-                curl_slist_free_all(header_list);
+            // 设置写回调
+            // eprintln!("设置回调1");
+            let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res);
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
             }
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
-        }
-        // eprintln!("设置回调4");
-        let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void);
-        if res.0 != CURLE_OK.0 {
-            eprintln!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res);
-            if !header_list.is_null() {
-                curl_slist_free_all(header_list);
+            // eprintln!("设置回调2");
+            let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res);
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res).into());
             }
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
-        }
 
-        // 执行请求
-        let res = curl_easy_perform(easy_handle);
-        if res.0 != CURLE_OK.0 {
-            let error_str = if !curl_easy_strerror(res).is_null() {
-                let c_str = CStr::from_ptr(curl_easy_strerror(res));
-                c_str.to_string_lossy().into_owned()
+            // 设置头回调
+            // eprintln!("设置回调3");
+            let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERFUNCTION, header_callback as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res);
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
+            }
+            // eprintln!("设置回调4");
+            let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res);
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
+            }
+
+            // 执行请求
+            let res = curl_easy_perform(easy_handle);
+            if res.0 != CURLE_OK.0 {
+                let error_str = if !curl_easy_strerror(res).is_null() {
+                    let c_str = CStr::from_ptr(curl_easy_strerror(res));
+                    c_str.to_string_lossy().into_owned()
+                } else {
+                    "Unknown CURL error".to_string()
+                };
+                eprintln!("CURL request failed: {}", error_str);
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err(format!("CURL request failed: {}", error_str).into());
+            }
+
+            // 获取响应码
+            let mut response_code: c_long = 0;
+            let res = get_response_code(
+                easy_handle as *mut CURL,
+                &mut response_code as *mut c_long,
+            );
+            if res.0 != CURLE_OK.0 {
+                eprintln!("Failed to get response code: {}", res);
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
+                unsafe { free_memory(mem_ptr) };
+                unsafe { free_headers(headers_ptr) };
+                return Err("CURL get info failed".into());
+            }
+
+            eprintln!("响应码: {}", response_code);
+
+            // 读取响应头部
+            let headers_lock = (*headers_ptr).count;
+            let mut response_headers = Vec::new();
+            for i in 0..(*headers_ptr).count {
+                let header_ptr = (*headers_ptr).headers.offset(i as isize);
+                let header = CStr::from_ptr(*header_ptr).to_string_lossy().into_owned();
+                response_headers.push(header);
+            }
+
+            // 读取响应体
+            let response_body = if (*mem_ptr).size > 0 {
+                std::str::from_utf8(std::slice::from_raw_parts((*mem_ptr).data as *const u8, (*mem_ptr).size))
+                    .unwrap_or("")
+                    .as_bytes()
+                    .to_vec()
             } else {
-                "Unknown CURL error".to_string()
+                Vec::new()
             };
-            eprintln!("CURL request failed: {}", error_str);
-            if !header_list.is_null() {
-                curl_slist_free_all(header_list);
-            }
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err(format!("CURL request failed: {}", error_str).into());
-        }
 
-        // 获取响应码
-        let mut response_code: c_long = 0;
-        let res = get_response_code(
-            easy_handle as *mut CURL,
-            &mut response_code as *mut c_long,
-        );
-        if res.0 != CURLE_OK.0 {
-            eprintln!("Failed to get response code: {}", res);
-            if !header_list.is_null() {
-                curl_slist_free_all(header_list);
-            }
-            unsafe { free_memory(mem_ptr) };
-            unsafe { free_headers(headers_ptr) };
-            return Err("CURL get info failed".into());
-        }
+            // 释放 C 结构体内存
+            curl_slist_free_all(header_list);
+            free_memory(mem_ptr);
+            free_headers(headers_ptr);
+            // // 构建状态行
+            let status_text = get_status_text(response_code as u32);
+            let status_line = format!("HTTP/1 {} {}", response_code, status_text);
 
-        eprintln!("响应码: {}", response_code);
-
-        // 读取响应头部
-        let headers_lock = (*headers_ptr).count;
-        let mut response_headers = Vec::new();
-        for i in 0..(*headers_ptr).count {
-            let header_ptr = (*headers_ptr).headers.offset(i as isize);
-            let header = CStr::from_ptr(*header_ptr).to_string_lossy().into_owned();
-            response_headers.push(header);
-        }
-
-        // 读取响应体
-        let response_body = if (*mem_ptr).size > 0 {
-            std::str::from_utf8(std::slice::from_raw_parts((*mem_ptr).data as *const u8, (*mem_ptr).size))
-                .unwrap_or("")
-                .as_bytes()
-                .to_vec()
-        } else {
-            Vec::new()
-        };
-
-        // 释放 C 结构体内存
-        curl_slist_free_all(header_list);
-        free_memory(mem_ptr);
-        free_headers(headers_ptr);
-        // // 构建状态行
-        let status_text = get_status_text(response_code as u32);
-        let status_line = format!("HTTP/1 {} {}", response_code, status_text);
-
-        // 合并所有部分，并确保有一个空行分隔头部和体
-        let full_response = format!(
-            "{}{}",
-            status_line,
-            ""
-        );
-        // 发送响应头部
-        locked_stream.write_all(full_response.as_bytes());
-
-        for header in response_headers.iter() {
-            if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
-                continue;
-            }
             // 合并所有部分，并确保有一个空行分隔头部和体
-            let head_response = format!(
+            let full_response = format!(
                 "{}{}",
-                header,
+                status_line,
                 ""
             );
-            locked_stream.write_all(head_response.as_bytes());
+            // 发送响应头部
+            locked_stream.write_all(full_response.as_bytes());
 
-        }
+            for header in response_headers.iter() {
+                if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
+                    continue;
+                }
+                // 合并所有部分，并确保有一个空行分隔头部和体
+                let head_response = format!(
+                    "{}{}",
+                    header,
+                    ""
+                );
+                locked_stream.write_all(head_response.as_bytes());
+
+            }
 
 
 
-        // 发送响应体
-        locked_stream.write_all(&response_body);
-        Ok(())
+            // 发送响应体
+            locked_stream.write_all(&response_body);
+            Ok::<(), Box<dyn std::error::Error + Send + Sync>>(()) // 闭包返回一个 Result 类型
         }
 
     }).await??;
