@@ -208,16 +208,12 @@ pub async fn handle_connection(
     }
 
     // 解析 HTTP 请求头
-    let  headers = [httparse::EMPTY_HEADER; 64];
-    let  req = {
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        httparse::Request::new(&mut headers)
-    };
+    let mut headers = [httparse::EMPTY_HEADER; 64];
+    let mut req = httparse::Request::new(&mut headers);
     // 解析 HTTP 请求头部，缩小 `buffer` 的借用范围
     let status = {
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        let mut req = Request::new(&mut headers);
-        req.parse(&buffer)?
+        let buffer_ref = &buffer[..]; // 创建 `buffer` 的引用，以避免生命周期问题
+        req.parse(buffer_ref)?
     };
 
     if !matches!(status, httparse::Status::Complete(_)) {
