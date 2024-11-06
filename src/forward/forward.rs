@@ -8,7 +8,7 @@ use libc::{c_char, c_int};
 use std::ffi::{c_long, c_void, CStr, CString};
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
-use httparse::Response;
+use httparse::{Request, Response};
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use std::sync::{Arc};
 use tokio::sync::Mutex;
@@ -210,7 +210,11 @@ pub async fn handle_connection(
     // 解析 HTTP 请求头
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
-    let status = req.parse(&buffer)?;
+    let status = {
+        let mut headers = [httparse::EMPTY_HEADER; 64];
+        let mut req = Request::new(&mut headers);
+        req.parse(&buffer)?
+    };
 
     if !matches!(status, httparse::Status::Complete(_)) {
         eprintln!("不完整的 HTTP 请求");
