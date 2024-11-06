@@ -573,7 +573,7 @@ pub async fn handle_connection(
     let mut content_length_set = false;
     for header in response_headers.iter() {
         if header.to_lowercase().starts_with("content-length:") {
-            updated_headers.push(format!("Content-Length: {}", content_length));
+            updated_headers.push(format!("Content-Length: {}\r\n", content_length));
             content_length_set = true;
         } else {
             updated_headers.push(header.clone());
