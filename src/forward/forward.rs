@@ -176,7 +176,30 @@ pub async fn start_forward_proxy(
 }
 
 
+fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, std::collections::HashMap<String, String>), Box<dyn std::error::Error>> {
+    let mut headers = [httparse::EMPTY_HEADER; 64];
+    let mut req = httparse::Request::new(&mut headers);
 
+    // Parse the request
+    let status = req.parse(&buffer)?;
+    if !matches!(status, httparse::Status::Complete(_)) {
+        return Err("Incomplete HTTP request".into());
+    }
+
+    // Extract method, path, and headers into owned types
+    let method = req.method.unwrap_or("").to_string();
+    let path = req.path.unwrap_or("").to_string();
+    let mut headers_map = std::collections::HashMap::new();
+
+    for header in req.headers.iter() {
+        headers_map.insert(
+            header.name.to_lowercase(),
+            String::from_utf8_lossy(header.value).to_string(),
+        );
+    }
+
+    Ok((method, path, headers_map))
+}
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
     mapping: ForwardMapping,
@@ -221,23 +244,7 @@ pub async fn handle_connection(
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
-    let (method,path,headers_map) =  {
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        let mut req = Request::new(&mut headers);
-        req.parse(&buffer)?;
-        let method = req.method.unwrap_or("");
-        let path = req.path.unwrap_or("");
-        let mut headers_map = std::collections::HashMap::new();
-
-        for header in req.headers.iter() {
-            headers_map.insert(
-            header.name.to_lowercase(),
-            String::from_utf8_lossy(header.value).to_string(),
-            );
-        }
-        (method,path,headers_map)
-
-    };
+    let (method,path,headers_map) =  parse_http_request(buffer)?;;
 
     let mut host = "";
 
