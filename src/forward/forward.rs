@@ -409,7 +409,7 @@ pub async fn handle_connection(
                     return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res).into());
                 }
             }
-            let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
+            let target_browser = CString::new("chrome124").unwrap(); // 选择要模拟的浏览器
             let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
             if result.0 != CURLE_OK.0 {
                 eprintln!("Failed to impersonate browser: {}", result);
@@ -423,7 +423,7 @@ pub async fn handle_connection(
                     continue;
                 }
                 let header = format!("{}: {}", key, value);
-                eprintln!("header {}",header);
+                // eprintln!("header {}",header);
                 let c_header = CString::new(header).unwrap();
                 header_list = curl_slist_append(header_list, c_header.as_ptr());
             }
