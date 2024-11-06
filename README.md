@@ -25,6 +25,7 @@ mv libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 mv curl_callbacks.o  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 mv curl_wrapper.o  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 mv libcurl_wrapper.a  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
+cp -r libcurl-impersonate-v0.6.1.x86_64-linux-gnu/*  /usr/lib/
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . "$HOME/.cargo/env"  # This loads the environment variables
 cargo build #debug
