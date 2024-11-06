@@ -178,7 +178,7 @@ pub async fn start_forward_proxy(
 }
 
 
-fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>,Vec<u8>,String,String), Box<dyn Error + Send + Sync>> {
+fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>,Vec<u8>,String), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -222,7 +222,7 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
         Vec::new()
     };
 
-    Ok((method, path, headers_map,body,target_url,host.to_string()))
+    Ok((method, path, headers_map,body,target_url))
 }
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
@@ -268,7 +268,7 @@ pub async fn handle_connection(
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
-    let (method,path,headers_map,body,target_url,host) =  parse_http_request(buffer)?;;
+    let (method,path,headers_map,body,target_url) =  parse_http_request(buffer)?;;
 
 
 
@@ -425,7 +425,7 @@ pub async fn handle_connection(
                 }
                 if key.to_lowercase().starts_with("referer"){
                     let re = Regex::new(r"https://[^/]+").unwrap();
-                    let result = re.replace(value, format!("https://{}",host));
+                    let result = re.replace(value, format!("https://{}",headers_map.get("host")));
                     let header = format!("{}: {}", key, result);
                     // eprintln!("header {}",header);
                     let c_header = CString::new(header).unwrap();
