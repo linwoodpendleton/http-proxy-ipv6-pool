@@ -249,9 +249,9 @@ pub async fn handle_connection(
     // 提取请求体（如果存在）
     let body_start = buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(0) + 4;
     let body = if body_start < buffer.len() {
-        &buffer[body_start..]
+        buffer[body_start..].to_vec() // 创建一个新的 Vec<u8>
     } else {
-        &[]
+        Vec::new()
     };
 
 
