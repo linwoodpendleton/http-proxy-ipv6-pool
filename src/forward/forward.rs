@@ -584,7 +584,7 @@ pub async fn handle_connection(
     // 发送响应体
     locked_stream.write_all(&response_body).await?;
 
-
+    locked_stream.flush().await?;
     // 在函数末尾添加 Ok(())
     Ok(())
 }
