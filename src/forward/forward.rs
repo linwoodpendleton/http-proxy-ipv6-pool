@@ -177,7 +177,7 @@ pub async fn start_forward_proxy(
 }
 
 
-fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>,Vec<u8>), Box<dyn Error + Send + Sync>> {
+fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>,Vec<u8>,String), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -221,7 +221,7 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
         Vec::new()
     };
 
-    Ok((method, path, headers_map,body))
+    Ok((method, path, headers_map,body,target_url))
 }
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
@@ -267,7 +267,7 @@ pub async fn handle_connection(
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
-    let (method,path,headers_map,body) =  parse_http_request(buffer)?;;
+    let (method,path,headers_map,body,target_url) =  parse_http_request(buffer)?;;
 
 
 
