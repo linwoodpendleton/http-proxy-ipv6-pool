@@ -567,7 +567,7 @@ pub async fn handle_connection(
 
     // Calculate the length of the response body
     let content_length = response_body.len();
-
+    eprintln!("响应体大小: {}", content_length);
     // Update Content-Length header in response_headers
     let mut updated_headers = Vec::new();
     let mut content_length_set = false;
