@@ -520,9 +520,8 @@ pub async fn handle_connection(
             curl_slist_free_all(header_list);
             free_memory(mem_ptr);
             free_headers(headers_ptr);
-            let status_text = get_status_text(response_code as u32);
             let status_code: i64 = response_code as i64;
-            let status_line = format!("HTTP/1.1 {} {}", status_code, status_text);
+            let status_line = format!("HTTP/1.1 {}", status_code);
             Ok((status_line, response_headers, response_body))
         }
 
