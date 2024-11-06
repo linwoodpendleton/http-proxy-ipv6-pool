@@ -425,16 +425,16 @@ pub async fn handle_connection(
                 let c_header = CString::new(header).unwrap();
                 header_list = curl_slist_append(header_list, c_header.as_ptr());
             }
-            if !header_list.is_null() {
-                let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
-                if res.0 != CURLE_OK.0 {
-                    eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
-                    curl_slist_free_all(header_list);
-                    unsafe { free_memory(mem_ptr) };
-                    unsafe { free_headers(headers_ptr) };
-                    return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
-                }
-            }
+            // if !header_list.is_null() {
+            //     let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
+            //     if res.0 != CURLE_OK.0 {
+            //         eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
+            //         curl_slist_free_all(header_list);
+            //         unsafe { free_memory(mem_ptr) };
+            //         unsafe { free_headers(headers_ptr) };
+            //         return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
+            //     }
+            // }
 
             // 设置写回调
             // eprintln!("设置回调1");
