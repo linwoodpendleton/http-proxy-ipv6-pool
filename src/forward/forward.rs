@@ -245,22 +245,22 @@ pub async fn handle_connection(
         &[]
     };
 
-    // 初始化 MemoryStruct 和 HeaderStruct
-    let mem_ptr = unsafe { init_memory() };
-    if mem_ptr.is_null() {
-        return Err("Failed to initialize MemoryStruct".into());
-    }
 
-    let headers_ptr = unsafe { init_headers() };
-    if headers_ptr.is_null() {
-        unsafe { free_memory(mem_ptr) };
-        return Err("Failed to initialize HeaderStruct".into());
-    }
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
     let result = task::spawn_blocking(move ||  {
         unsafe {
+            // 初始化 MemoryStruct 和 HeaderStruct
+            let mem_ptr =  init_memory() ;
+            if mem_ptr.is_null() {
+                return Err("Failed to initialize MemoryStruct".into());
+            }
 
+            let headers_ptr = init_headers() ;
+            if headers_ptr.is_null() {
+                unsafe { free_memory(mem_ptr) };
+                return Err("Failed to initialize HeaderStruct".into());
+            }
         // 初始化 CURL easy handle
         let easy_handle = curl_easy_init();
         if easy_handle.is_null() {
