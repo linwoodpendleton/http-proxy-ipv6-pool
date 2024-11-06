@@ -530,6 +530,7 @@ pub async fn handle_connection(
             }
 
             // 读取响应体
+            eprintln!("响应体大小2: {}", (*mem_ptr).size);
             let response_body = if (*mem_ptr).size > 0 {
                 std::str::from_utf8(std::slice::from_raw_parts((*mem_ptr).data as *const u8, (*mem_ptr).size))
                     .unwrap_or("")
