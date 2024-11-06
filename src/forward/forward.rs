@@ -252,7 +252,7 @@ pub async fn handle_connection(
 
 
     // 使用 libcurl-impersonate 发起请求并收集响应数据
-    let (response_code, response_headers, response_body) = task::spawn_blocking(move || -> Result<(String, Vec<String>, Vec<u8>), Box<dyn Error + Send + Sync>> {
+    let (status_line, response_headers, response_body) = task::spawn_blocking(move || -> Result<(String, Vec<String>, Vec<u8>), Box<dyn Error + Send + Sync>> {
         unsafe {
             // 初始化 MemoryStruct 和 HeaderStruct
             let mem_ptr =  init_memory() ;
@@ -520,8 +520,10 @@ pub async fn handle_connection(
             curl_slist_free_all(header_list);
             free_memory(mem_ptr);
             free_headers(headers_ptr);
-
-            Ok((response_code, response_headers, response_body));
+            let status_text = get_status_text(response_code as u32);
+            let status_code: i64 = response_code as i64;
+            let status_line = format!("HTTP/1.1 {} {}", status_code, status_text);
+            Ok((status_line, response_headers, response_body))
         }
 
     }).await??;
@@ -530,9 +532,6 @@ pub async fn handle_connection(
 
 
 
-    // // 构建状态行
-    let status_text = get_status_text(response_code as u32);
-    let status_line = format!("HTTP/1 {} {}", response_code, status_text);
 
     // 合并所有部分，并确保有一个空行分隔头部和体
     let full_response = format!(
