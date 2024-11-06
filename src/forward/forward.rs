@@ -563,7 +563,7 @@ pub async fn handle_connection(
     );
     let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
     // 发送响应头部
-    locked_stream.write_all(full_response.as_bytes());
+    locked_stream.write_all(full_response.as_bytes()).await?;
 
     for header in response_headers.iter() {
         if header.starts_with("HTTP/1.1") || header.starts_with("HTTP/2") || header.starts_with("Date")|| header.starts_with("content-encoding") {
@@ -575,14 +575,14 @@ pub async fn handle_connection(
             header,
             ""
         );
-        locked_stream.write_all(head_response.as_bytes());
+        locked_stream.write_all(head_response.as_bytes()).await?;
 
     }
 
 
 
     // 发送响应体
-    locked_stream.write_all(&response_body);
+    locked_stream.write_all(&response_body).await?;
 
 
     // 在函数末尾添加 Ok(())
