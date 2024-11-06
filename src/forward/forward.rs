@@ -125,7 +125,6 @@ fn is_allowed_ip(
     }
 }
 
-/// 启动转发代理的异步函数
 pub async fn start_forward_proxy(
     mapping: ForwardMapping,
     ipv6_subnets: Arc<Vec<Ipv6Cidr>>,
@@ -143,10 +142,12 @@ pub async fn start_forward_proxy(
         let ipv4_subnets = Arc::clone(&ipv4_subnets);
         let allowed_ips = allowed_ips.clone();
 
-        // 检查客户端 IP 是否在允许的范围内
+        // Wrap `local_stream` in Arc<Mutex<>> to make it Send + Sync
+        let local_stream = Arc::new(Mutex::new(local_stream));
+
         if !is_allowed_ip(
             &client_addr.ip(),
-            &*ipv6_subnets, // 解引用 Arc 并获取引用
+            &*ipv6_subnets,
             &*ipv4_subnets,
             &allowed_ips,
         ) {
@@ -155,26 +156,25 @@ pub async fn start_forward_proxy(
         }
 
         tokio::spawn(async move {
-            if let Err(e) = Box::pin(handle_connection(
-                local_stream,
-                mapping,
-                timeout_duration,
-            ))
-                .await
-            {
+            let local_stream = local_stream.clone(); // Clone Arc to move into async block
+            if let Err(e) = handle_connection(local_stream, mapping, timeout_duration).await {
                 eprintln!("Error handling connection from {}: {}", client_addr, e);
             }
         });
     }
 }
 
+
 pub async fn handle_connection(
-    mut local_stream: TcpStream,
+    local_stream: Arc<Mutex<TcpStream>>,
     mapping: ForwardMapping,
     _timeout_duration: Duration,
-) -> Result<(), Box<dyn Error>> {
-    let client_addr = local_stream.peer_addr()?;
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let client_addr = local_stream.lock().await.peer_addr()?;
     eprintln!("处理来自 {} 的连接", client_addr);
+
+    // Now `local_stream` access must be wrapped with `lock().await`
+    let mut locked_stream = local_stream.lock().await;
 
     // 读取完整的 HTTP 请求（头部和请求体）
     let mut buffer = Vec::new();
