@@ -209,25 +209,38 @@ pub async fn handle_connection(
 
     // 解析 HTTP 请求头
     let mut headers = [httparse::EMPTY_HEADER; 64];
-    let mut req = httparse::Request::new(&mut headers);
+
     // 解析 HTTP 请求头部，缩小 `buffer` 的借用范围
-    let status = req.parse(&buffer)?;
+    let status = {
+        let mut headers = [httparse::EMPTY_HEADER; 64];
+        let mut req = Request::new(&mut headers);
+        req.parse(&buffer)?
+    };
+
     if !matches!(status, httparse::Status::Complete(_)) {
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
+    let (method,path,headers_map) =  {
+        let mut headers = [httparse::EMPTY_HEADER; 64];
+        let mut req = Request::new(&mut headers);
+        req.parse(&buffer);
+        let method = req.method.unwrap_or("");
+        let path = req.path.unwrap_or("");
+        let mut headers_map = std::collections::HashMap::new();
 
-    let method = req.method.unwrap_or("");
-    let path = req.path.unwrap_or("");
-    let mut host = "";
-    let mut headers_map = std::collections::HashMap::new();
-
-    for header in req.headers.iter() {
-        headers_map.insert(
+        for header in req.headers.iter() {
+            headers_map.insert(
             header.name.to_lowercase(),
             String::from_utf8_lossy(header.value).to_string(),
-        );
-    }
+            );
+        }
+        (method,path,headers_map)
+
+    };
+
+    let mut host = "";
+
 
     if let Some(h) = headers_map.get("host") {
         host = h;
