@@ -8,7 +8,7 @@ use libc::{c_char, c_int};
 use std::ffi::{c_long, c_void, CStr, CString};
 use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
-use httparse::Response;
+use httparse::{Request, Response};
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use std::sync::{Arc};
 use tokio::sync::Mutex;
@@ -16,7 +16,6 @@ use tokio::net::{TcpListener, TcpStream};
 use crate::forward::curl_ffi::CurlResponse;
 use tokio_socks::tcp::Socks5Stream;
 use std::ptr;
-use std::ptr::null;
 use rand::seq::SliceRandom;
 use scopeguard::defer;
 use tokio::task;
@@ -187,7 +186,6 @@ pub async fn handle_connection(
     eprintln!("处理来自 {} 的连接", client_addr);
 
     let mut buffer = Vec::new();
-    let mut req = httparse::Request::new(&mut []);
     loop {
         let n = {
             let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
@@ -207,13 +205,17 @@ pub async fn handle_connection(
         if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
             break;
         }
-        let mut headers = [httparse::EMPTY_HEADER; 64];
-        req = httparse::Request::new(&mut headers);
-
     }
 
     // 解析 HTTP 请求头
-    let status = req.parse(&buffer)?;
+    let mut headers = [httparse::EMPTY_HEADER; 64];
+    let mut req = httparse::Request::new(&mut headers);
+    // 解析 HTTP 请求头部，缩小 `buffer` 的借用范围
+    let status = {
+        let mut headers = [httparse::EMPTY_HEADER; 64];
+        let mut req = Request::new(&mut headers);
+        req.parse(&buffer)?
+    };
 
     if !matches!(status, httparse::Status::Complete(_)) {
         eprintln!("不完整的 HTTP 请求");
