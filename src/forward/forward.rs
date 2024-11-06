@@ -544,7 +544,7 @@ pub async fn handle_connection(
             free_memory(mem_ptr);
             free_headers(headers_ptr);
             let status_code: i64 = response_code as i64;
-            let status_line = format!("HTTP/1 {}", status_code);
+            let status_line = format!("HTTP/1.1 {}", status_code);
             Ok((status_line, response_headers, response_body))
         }
 
