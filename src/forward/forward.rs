@@ -529,7 +529,7 @@ pub async fn handle_connection(
                 return Err("CURL get info failed".into());
             }
 
-            eprintln!("响应码: {} {}", response_code,proxy_addr);
+            eprintln!("响应码: {} {}", response_code,proxy_addr.clone());
 
             // 读取响应头部
             let headers_lock = (*headers_ptr).count;
