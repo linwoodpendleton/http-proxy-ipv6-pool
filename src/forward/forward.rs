@@ -308,13 +308,14 @@ pub async fn handle_connection(
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_URL failed: {}", res).into());
             }
+            let mut rng = rand::thread_rng();
+            let proxy_addr = mapping.proxy_addrs.choose(&mut rng)
+                .expect("No proxy addresses available")
+                .to_string(); // 随机选择一个代理地址并转换为字符串
             // 设置代理（如果存在）
             if !mapping.proxy_addrs.is_empty() {
                 // 设置代理地址
-                let mut rng = rand::thread_rng();
-                let proxy_addr = mapping.proxy_addrs.choose(&mut rng)
-                    .expect("No proxy addresses available")
-                    .to_string(); // 随机选择一个代理地址并转换为字符串
+
                 let proxy_c = CString::new(proxy_addr).unwrap();
                 let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
                 if res.0 != CURLE_OK.0 {
@@ -528,7 +529,7 @@ pub async fn handle_connection(
                 return Err("CURL get info failed".into());
             }
 
-            eprintln!("响应码: {}", response_code);
+            eprintln!("响应码: {} {}", response_code,proxy_addr);
 
             // 读取响应头部
             let headers_lock = (*headers_ptr).count;
