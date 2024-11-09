@@ -316,7 +316,7 @@ pub async fn handle_connection(
             if !mapping.proxy_addrs.is_empty() {
                 // 设置代理地址
 
-                let proxy_c = CString::new(proxy_addr).unwrap();
+                let proxy_c = CString::new(proxy_addr.clone()).unwrap();
                 let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
                 if res.0 != CURLE_OK.0 {
                     eprintln!("curl_easy_setopt CURLOPT_PROXY failed: {}", res);
