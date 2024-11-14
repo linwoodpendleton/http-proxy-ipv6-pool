@@ -375,6 +375,7 @@ pub async fn handle_connection(
 
                 if key.to_lowercase().starts_with("proxy"){
                     proxy_addr = format!("{}",  value);
+                    continue
                 }
 
 
