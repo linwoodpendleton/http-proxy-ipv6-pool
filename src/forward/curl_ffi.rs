@@ -108,6 +108,8 @@ pub const CURLPROXY_SOCKS5: c_int = 5;
 
 pub const CURLOPT_POSTFIELDSIZE: c_int = 60;
 
+pub const CURLOPT_FOLLOWLOCATION: c_int = 52;
+
 
 
 // 定义 curl_easy_getinfo 的选项常量
