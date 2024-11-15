@@ -358,34 +358,35 @@ pub async fn handle_connection(
             }
             // 设置请求头
             let mut header_list = ptr::null_mut();
-            for (key, value) in headers_map.iter() {
-                // 忽略一些自动设置的头部
-                if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
-                    continue;
-                }
-                if key.to_lowercase().starts_with("referer"){
-                    let re = Regex::new(r"https://[^/]+").unwrap();
-                    let result = re.replace(value, format!("https://{}",host));
-                    let header = format!("{}: {}", key, result);
-                    // eprintln!("header {}",header);
-                    let c_header = CString::new(header).unwrap();
-                    header_list = curl_slist_append(header_list, c_header.as_ptr());
-                    continue
-                }
-                if key.to_lowercase().starts_with("cookie")   {
-                    let header = format!("{}: {}", key, value);
-                    // eprintln!("header {}",header);
-                    let c_header = CString::new(header).unwrap();
-                    header_list = curl_slist_append(header_list, c_header.as_ptr());
-                }
-                if key.to_lowercase().starts_with("proxy"){
-                    proxy_addr = format!("{}",  value);
-                    continue
-                }
-
-
-
-            }
+            // header_list = curl_slist_append(header_list, c_header.as_ptr());
+            // for (key, value) in headers_map.iter() {
+            //     // 忽略一些自动设置的头部
+            //     if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
+            //         continue;
+            //     }
+            //     if key.to_lowercase().starts_with("referer"){
+            //         let re = Regex::new(r"https://[^/]+").unwrap();
+            //         let result = re.replace(value, format!("https://{}",host));
+            //         let header = format!("{}: {}", key, result);
+            //         // eprintln!("header {}",header);
+            //         let c_header = CString::new(header).unwrap();
+            //         header_list = curl_slist_append(header_list, c_header.as_ptr());
+            //         continue
+            //     }
+            //     if key.to_lowercase().starts_with("cookie")   {
+            //         let header = format!("{}: {}", key, value);
+            //         // eprintln!("header {}",header);
+            //         let c_header = CString::new(header).unwrap();
+            //         header_list = curl_slist_append(header_list, c_header.as_ptr());
+            //     }
+            //     if key.to_lowercase().starts_with("proxy"){
+            //         proxy_addr = format!("{}",  value);
+            //         continue
+            //     }
+            //
+            //
+            //
+            // }
             // 设置跟随重定向
             // let res = curl_easy_setopt(easy_handle, CURLOPT_FOLLOWLOCATION, 1 as *const c_void);
             // if res.0 != CURLE_OK.0 {
