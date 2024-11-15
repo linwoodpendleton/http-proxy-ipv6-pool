@@ -357,7 +357,7 @@ pub async fn handle_connection(
                 return Err("Impersonation failed".into());
             }
             // 设置请求头
-            let mut header_list = ptr::null_mut();
+            // let mut header_list = ptr::null_mut();
             // for (key, value) in headers_map.iter() {
             //     // 忽略一些自动设置的头部
             //     if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
