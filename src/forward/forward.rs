@@ -267,7 +267,7 @@ pub async fn handle_connection(
     let (method,path,headers_map,body,target_url,host) =  parse_http_request(buffer)?;;
 
 
-    let mut chrome_so = "chrome116";
+    let mut chrome_so = format!("chrome116");
 
 
 
@@ -378,7 +378,7 @@ pub async fn handle_connection(
                     continue
                 }
                 if key.to_lowercase().starts_with("chromeso"){
-                    chrome_so = value;
+                    chrome_so = format!("{}",  value);
                     continue
                 }
 
