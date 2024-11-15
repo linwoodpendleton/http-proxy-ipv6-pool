@@ -267,7 +267,7 @@ pub async fn handle_connection(
     let (method,path,headers_map,body,target_url,host) =  parse_http_request(buffer)?;;
 
 
-
+    let mut chrome_so = "chrome116";
 
 
 
@@ -350,7 +350,7 @@ pub async fn handle_connection(
                     return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res).into());
                 }
             }
-            let target_browser = CString::new("chrome116").unwrap(); // 选择要模拟的浏览器
+            let target_browser = CString::new(chrome_so).unwrap(); // 选择要模拟的浏览器
             let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
             if result.0 != CURLE_OK.0 {
                 eprintln!("Failed to impersonate browser: {}", result);
@@ -377,6 +377,15 @@ pub async fn handle_connection(
                     proxy_addr = format!("{}",  value);
                     continue
                 }
+                if key.to_lowercase().starts_with("chromeso"){
+                    chrome_so = value;
+                    continue
+                }
+
+                let header = format!("{}: {}", key, value);
+                // eprintln!("header {}",header);
+                let c_header = CString::new(header).unwrap();
+                header_list = curl_slist_append(header_list, c_header.as_ptr());
 
 
 
