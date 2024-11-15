@@ -372,17 +372,19 @@ pub async fn handle_connection(
                     header_list = curl_slist_append(header_list, c_header.as_ptr());
                     continue
                 }
-
+                if key.to_lowercase().starts_with("cookie") || key.to_lowercase().starts_with("content-type") || key.to_lowercase().starts_with("content-length")|| key.to_lowercase().starts_with("host")  {
+                    let header = format!("{}: {}", key, value);
+                    // eprintln!("header {}",header);
+                    let c_header = CString::new(header).unwrap();
+                    header_list = curl_slist_append(header_list, c_header.as_ptr());
+                }
                 if key.to_lowercase().starts_with("proxy"){
                     proxy_addr = format!("{}",  value);
                     continue
                 }
 
 
-                let header = format!("{}: {}", key, value);
-                // eprintln!("header {}",header);
-                let c_header = CString::new(header).unwrap();
-                header_list = curl_slist_append(header_list, c_header.as_ptr());
+
             }
             // 设置跟随重定向
             // let res = curl_easy_setopt(easy_handle, CURLOPT_FOLLOWLOCATION, 1 as *const c_void);
