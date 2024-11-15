@@ -357,7 +357,7 @@ pub async fn handle_connection(
                 return Err("Impersonation failed".into());
             }
             // 设置请求头
-            let mut header_list = ptr::null_mut();
+            // let mut header_list = ptr::null_mut();
             // header_list = curl_slist_append(header_list, c_header.as_ptr());
             // for (key, value) in headers_map.iter() {
             //     // 忽略一些自动设置的头部
@@ -472,9 +472,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res);
-                if !header_list.is_null() {
-                    curl_slist_free_all(header_list);
-                }
+                // if !header_list.is_null() {
+                //     curl_slist_free_all(header_list);
+                // }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
@@ -483,9 +483,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res);
-                if !header_list.is_null() {
-                    curl_slist_free_all(header_list);
-                }
+                // if !header_list.is_null() {
+                //     curl_slist_free_all(header_list);
+                // }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res).into());
@@ -496,9 +496,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERFUNCTION, header_callback as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res);
-                if !header_list.is_null() {
-                    curl_slist_free_all(header_list);
-                }
+                // if !header_list.is_null() {
+                //     curl_slist_free_all(header_list);
+                // }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
@@ -507,9 +507,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res);
-                if !header_list.is_null() {
-                    curl_slist_free_all(header_list);
-                }
+                // if !header_list.is_null() {
+                //     curl_slist_free_all(header_list);
+                // }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
@@ -525,9 +525,9 @@ pub async fn handle_connection(
                     "Unknown CURL error".to_string()
                 };
                 eprintln!("CURL request failed: {}", error_str);
-                if !header_list.is_null() {
-                    curl_slist_free_all(header_list);
-                }
+                // if !header_list.is_null() {
+                //     curl_slist_free_all(header_list);
+                // }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("CURL request failed: {}", error_str).into());
@@ -541,9 +541,9 @@ pub async fn handle_connection(
             );
             if res.0 != CURLE_OK.0 {
                 eprintln!("Failed to get response code: {}", res);
-                if !header_list.is_null() {
-                    curl_slist_free_all(header_list);
-                }
+                // if !header_list.is_null() {
+                //     curl_slist_free_all(header_list);
+                // }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err("CURL get info failed".into());
@@ -569,7 +569,7 @@ pub async fn handle_connection(
             };
 
             // 释放 C 结构体内存
-            curl_slist_free_all(header_list);
+            // curl_slist_free_all(header_list);
             free_memory(mem_ptr);
             free_headers(headers_ptr);
             let status_code: i64 = response_code as i64;
