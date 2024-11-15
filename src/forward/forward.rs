@@ -357,36 +357,30 @@ pub async fn handle_connection(
                 return Err("Impersonation failed".into());
             }
             // 设置请求头
-            // let mut header_list = ptr::null_mut();
-            // header_list = curl_slist_append(header_list, c_header.as_ptr());
-            // for (key, value) in headers_map.iter() {
-            //     // 忽略一些自动设置的头部
-            //     if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
-            //         continue;
-            //     }
-            //     if key.to_lowercase().starts_with("referer"){
-            //         let re = Regex::new(r"https://[^/]+").unwrap();
-            //         let result = re.replace(value, format!("https://{}",host));
-            //         let header = format!("{}: {}", key, result);
-            //         // eprintln!("header {}",header);
-            //         let c_header = CString::new(header).unwrap();
-            //         header_list = curl_slist_append(header_list, c_header.as_ptr());
-            //         continue
-            //     }
-            //     if key.to_lowercase().starts_with("cookie")   {
-            //         let header = format!("{}: {}", key, value);
-            //         // eprintln!("header {}",header);
-            //         let c_header = CString::new(header).unwrap();
-            //         header_list = curl_slist_append(header_list, c_header.as_ptr());
-            //     }
-            //     if key.to_lowercase().starts_with("proxy"){
-            //         proxy_addr = format!("{}",  value);
-            //         continue
-            //     }
-            //
-            //
-            //
-            // }
+            let mut header_list = ptr::null_mut();
+            for (key, value) in headers_map.iter() {
+                // 忽略一些自动设置的头部
+                if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
+                    continue;
+                }
+                if key.to_lowercase().starts_with("referer"){
+                    let re = Regex::new(r"https://[^/]+").unwrap();
+                    let result = re.replace(value, format!("https://{}",host));
+                    let header = format!("{}: {}", key, result);
+                    // eprintln!("header {}",header);
+                    let c_header = CString::new(header).unwrap();
+                    header_list = curl_slist_append(header_list, c_header.as_ptr());
+                    continue
+                }
+
+                if key.to_lowercase().starts_with("proxy"){
+                    proxy_addr = format!("{}",  value);
+                    continue
+                }
+
+
+
+            }
             // 设置跟随重定向
             // let res = curl_easy_setopt(easy_handle, CURLOPT_FOLLOWLOCATION, 1 as *const c_void);
             // if res.0 != CURLE_OK.0 {
@@ -456,25 +450,25 @@ pub async fn handle_connection(
                 //     return Err("Failed to set proxy password".into());
                 // }
             }
-            // if !header_list.is_null() {
-            //     let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
-            //     if res.0 != CURLE_OK.0 {
-            //         eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
-            //         curl_slist_free_all(header_list);
-            //         unsafe { free_memory(mem_ptr) };
-            //         unsafe { free_headers(headers_ptr) };
-            //         return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
-            //     }
-            // }
+            if !header_list.is_null() {
+                let res = curl_easy_setopt(easy_handle, CURLOPT_HTTPHEADER, header_list as *const c_void);
+                if res.0 != CURLE_OK.0 {
+                    eprintln!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res);
+                    curl_slist_free_all(header_list);
+                    unsafe { free_memory(mem_ptr) };
+                    unsafe { free_headers(headers_ptr) };
+                    return Err(format!("curl_easy_setopt CURLOPT_HTTPHEADER failed: {}", res).into());
+                }
+            }
 
             // 设置写回调
             // eprintln!("设置回调1");
             let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEFUNCTION, write_callback as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res);
-                // if !header_list.is_null() {
-                //     curl_slist_free_all(header_list);
-                // }
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_WRITEFUNCTION failed: {}", res).into());
@@ -483,9 +477,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_WRITEDATA, mem_ptr as *mut c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res);
-                // if !header_list.is_null() {
-                //     curl_slist_free_all(header_list);
-                // }
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_WRITEDATA failed: {}", res).into());
@@ -496,9 +490,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERFUNCTION, header_callback as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res);
-                // if !header_list.is_null() {
-                //     curl_slist_free_all(header_list);
-                // }
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_HEADERFUNCTION failed: {}", res).into());
@@ -507,9 +501,9 @@ pub async fn handle_connection(
             let res = curl_easy_setopt(easy_handle, CURLOPT_HEADERDATA, headers_ptr as *mut c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res);
-                // if !header_list.is_null() {
-                //     curl_slist_free_all(header_list);
-                // }
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
@@ -525,9 +519,9 @@ pub async fn handle_connection(
                     "Unknown CURL error".to_string()
                 };
                 eprintln!("CURL request failed: {}", error_str);
-                // if !header_list.is_null() {
-                //     curl_slist_free_all(header_list);
-                // }
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("CURL request failed: {}", error_str).into());
@@ -541,9 +535,9 @@ pub async fn handle_connection(
             );
             if res.0 != CURLE_OK.0 {
                 eprintln!("Failed to get response code: {}", res);
-                // if !header_list.is_null() {
-                //     curl_slist_free_all(header_list);
-                // }
+                if !header_list.is_null() {
+                    curl_slist_free_all(header_list);
+                }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
                 return Err("CURL get info failed".into());
@@ -569,7 +563,7 @@ pub async fn handle_connection(
             };
 
             // 释放 C 结构体内存
-            // curl_slist_free_all(header_list);
+            curl_slist_free_all(header_list);
             free_memory(mem_ptr);
             free_headers(headers_ptr);
             let status_code: i64 = response_code as i64;
