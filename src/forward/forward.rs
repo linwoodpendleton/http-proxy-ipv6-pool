@@ -121,10 +121,7 @@ fn is_allowed_ip(
     if allowed_ips.as_ref().map_or(true, |ips| ips.is_empty()) {
         return true;
     }
-    match allowed_ips {
-        Some(ips) => println!("Allowed IPs: {:#?}", ips), // 格式化打印 IP 列表
-        None => println!("Allowed IPs: None"), // 如果是 None，则打印 None
-    }
+
     if let Some(allowed_ips) = allowed_ips {
         if allowed_ips.contains(ip) {
             return true;
@@ -186,7 +183,9 @@ pub async fn start_forward_proxy(
 }
 
 
-fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String, String>,Vec<u8>,String,String), Box<dyn Error + Send + Sync>> {
+fn parse_http_request(
+    buffer: Vec<u8>,
+) -> Result<(String, String, HashMap<String, String>, Vec<u8>, String, String), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -208,38 +207,42 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
         );
     }
 
+    // Get rehost and host values
     let re_host = headers_map.get("rehost").map(|h| h.to_string()).unwrap_or_default();
-
-
     let host = headers_map.get("host").map(|h| h.to_string()).unwrap_or_default();
 
+    // Update host in headers_map if re_host is present
+    if !re_host.is_empty() {
+        headers_map.insert("host".to_string(), re_host.clone());
+    }
 
+    // Determine the target URL
     let target_url = if path.starts_with("http://") || path.starts_with("https://") {
         path.to_string()
+    } else if !re_host.is_empty() {
+        format!("https://{}{}", re_host, path)
     } else {
-        if re_host.len() > 0 {
-            format!("https://{}{}", re_host, path)
-        } else {
-            format!("https://{}{}", host, path)
-        }
+        format!("https://{}{}", host, path)
     };
 
     eprintln!("请求方法: {}, URL: {}", method, target_url);
 
-    // 提取请求体（如果存在）
+    // Extract request body (if present)
     let body_start = buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(0) + 4;
     let body = if body_start < buffer.len() {
-        buffer[body_start..].to_vec() // 创建一个新的 Vec<u8>
+        buffer[body_start..].to_vec() // Create a new Vec<u8>
     } else {
         Vec::new()
     };
-    if re_host.len() > 0 {
-        Ok((method, path, headers_map,body,target_url,re_host.to_string()))
-    }else {
-        Ok((method, path, headers_map,body,target_url,host.to_string()))
-    }
 
+    // Return parsed result
+    if !re_host.is_empty() {
+        Ok((method, path, headers_map, body, target_url, re_host))
+    } else {
+        Ok((method, path, headers_map, body, target_url, host))
+    }
 }
+
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
     mapping: ForwardMapping,
