@@ -249,7 +249,7 @@ pub async fn handle_connection(
     _timeout_duration: Duration,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client_addr = local_stream.lock().await.peer_addr()?;
-    eprintln!("处理来自 {} 的连接", client_addr);
+    // eprintln!("处理来自 {} 的连接", client_addr);
 
     let mut buffer = Vec::new();
     loop {
@@ -575,7 +575,7 @@ pub async fn handle_connection(
                 return Err("CURL get info failed".into());
             }
 
-            eprintln!("响应码: {} {}", response_code,proxy_addr.clone());
+            eprintln!("响应码: {} {} {}", response_code,proxy_addr.clone(),client_addr.clone());
 
             // 读取响应头部
             let headers_lock = (*headers_ptr).count;
@@ -587,7 +587,7 @@ pub async fn handle_connection(
             }
 
             // 读取响应体
-            eprintln!("响应体大小2: {}", (*mem_ptr).size);
+            // eprintln!("响应体大小2: {}", (*mem_ptr).size);
             let response_body = if (*mem_ptr).size > 0 {
                 std::slice::from_raw_parts((*mem_ptr).data as *const u8, (*mem_ptr).size).to_vec()
             } else {
