@@ -17,11 +17,15 @@
 
 # 编译说明。    
 ```shell
+apt install libssl-dev
+apt install libcurl4-openssl-dev
+export OPENSSL_DIR=/usr/lib/ssl
+export OPENSSL_INCLUDE_DIR=/usr/include/openssl
+export OPENSSL_LIB_DIR=/usr/lib
 gcc -c -o curl_callbacks.o curl_callbacks.c
 gcc -c -o curl_wrapper.o curl_wrapper.c
 ls
 ar rcs libcurl_wrapper.a curl_callbacks.o curl_wrapper.o
-mv libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 mv curl_callbacks.o  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 mv curl_wrapper.o  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
 mv libcurl_wrapper.a  libcurl-impersonate-v0.6.1.x86_64-linux-gnu/
