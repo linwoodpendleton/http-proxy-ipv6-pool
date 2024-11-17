@@ -121,6 +121,10 @@ fn is_allowed_ip(
     if allowed_ips.as_ref().map_or(true, |ips| ips.is_empty()) {
         return true;
     }
+    match allowed_ips {
+        Some(ips) => println!("Allowed IPs: {:#?}", ips), // 格式化打印 IP 列表
+        None => println!("Allowed IPs: None"), // 如果是 None，则打印 None
+    }
     if let Some(allowed_ips) = allowed_ips {
         if allowed_ips.contains(ip) {
             return true;
