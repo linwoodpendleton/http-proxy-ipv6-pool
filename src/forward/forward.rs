@@ -199,13 +199,21 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
             String::from_utf8_lossy(header.value).to_string(),
         );
     }
+
+    let re_host = headers_map.get("rehost").map(|h| h.to_string()).unwrap_or_default();
+
+
     let host = headers_map.get("host").map(|h| h.to_string()).unwrap_or_default();
 
 
     let target_url = if path.starts_with("http://") || path.starts_with("https://") {
         path.to_string()
     } else {
-        format!("https://{}{}", host, path)
+        if re_host.len() > 0 {
+            format!("https://{}{}", re_host, path)
+        } else {
+            format!("https://{}{}", host, path)
+        }
     };
 
     eprintln!("请求方法: {}, URL: {}", method, target_url);
@@ -217,8 +225,12 @@ fn parse_http_request(buffer: Vec<u8>) -> Result<(String, String, HashMap<String
     } else {
         Vec::new()
     };
+    if re_host.len() > 0 {
+        Ok((method, path, headers_map,body,target_url,re_host.to_string()))
+    }else {
+        Ok((method, path, headers_map,body,target_url,host.to_string()))
+    }
 
-    Ok((method, path, headers_map,body,target_url,host.to_string()))
 }
 pub async fn handle_connection(
     local_stream: Arc<Mutex<TcpStream>>,
