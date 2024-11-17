@@ -117,6 +117,10 @@ fn is_allowed_ip(
     ipv4_subnets: &Vec<Ipv4Cidr>,
     allowed_ips: &Option<Vec<IpAddr>>,
 ) -> bool {
+    // 如果 allowed_ips 是 None 或者是空的，直接允许
+    if allowed_ips.as_ref().map_or(true, |ips| ips.is_empty()) {
+        return true;
+    }
     if let Some(allowed_ips) = allowed_ips {
         if allowed_ips.contains(ip) {
             return true;
