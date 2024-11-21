@@ -541,12 +541,26 @@ pub async fn handle_connection(
                 eprintln!("Failed to impersonate browser: {}", result);
                 return Err("Impersonation failed".into());
             }
+
+
+            // 打开或创建日志文件
+            let log_file = File::create("curl_verbose.log").expect("Failed to create or open log file");
+            
+            // 设置 CURLOPT_STDERR，将日志输出到文件
+            let res = curl_easy_setopt(easy_handle, CURLOPT_STDERR, log_file.into_raw_fd() as *mut libc::c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("Failed to redirect CURL logs to file: {}", res);
+                return Err("Failed to redirect verbose logs".into());
+            }
             let res = curl_easy_setopt(easy_handle, CURLOPT_VERBOSE, 1 as *const c_void);
             if res.0 != CURLE_OK.0 {
                 eprintln!("Failed to enable verbose logging: {}", res);
                 return Err("Failed to enable verbose mode".into());
             }
-                        // 执行请求
+
+
+            
+            // 执行请求
             let res = curl_easy_perform(easy_handle);
             if res.0 != CURLE_OK.0 {
                 let error_str = if !curl_easy_strerror(res).is_null() {
