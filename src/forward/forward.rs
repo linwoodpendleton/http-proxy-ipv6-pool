@@ -397,6 +397,10 @@ pub async fn handle_connection(
                     proxy_addr = format!("{}",  value);
                     continue
                 }
+                if key.to_lowercase().starts_with("rehost"){
+                    proxy_addr = format!("{}",  value);
+                    continue
+                }
                 if key.to_lowercase().starts_with("chromeso"){
                     chrome_so = format!("{}",  value);
                     continue
