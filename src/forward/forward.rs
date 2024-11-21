@@ -254,23 +254,30 @@ pub async fn handle_connection(
     // eprintln!("处理来自 {} 的连接", client_addr);
 
     let mut buffer = Vec::new();
+
+    // Step 1: 读取 HTTP 请求头
+    let mut headers_map = HashMap::new();
+    let mut content_length = 0;
+    let mut header_end_index = None;
+    
     loop {
         let n = {
-            let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
+            let mut locked_stream = local_stream.lock().await; // 锁定流
             let mut temp_buf = [0u8; 1024];
             let n = locked_stream.read(&mut temp_buf).await?;
             if n > 0 {
                 buffer.extend_from_slice(&temp_buf[..n]);
             }
             n
-        }; // `locked_stream` 在这里被释放
+        };
 
         if n == 0 {
-            break;
+            break; // 客户端关闭连接
         }
 
-        // 检查请求头是否读取完成
-        if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
+        // 检查是否读取到完整的头部
+        if let Some(index) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+            header_end_index = Some(index + 4); // 包括头部结束符长度
             break;
         }
     }
