@@ -380,7 +380,7 @@ pub async fn handle_connection(
             let mut header_list = ptr::null_mut();
             for (key, value) in headers_map.iter() {
                 // 忽略一些自动设置的头部
-                if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
+                if key.to_lowercase().starts_with("x-forwarded")  || key.to_lowercase().starts_with("x-gt") || key.to_lowercase().starts_with("rehost"){
                     continue;
                 }
                 if key.to_lowercase().starts_with("referer"){
@@ -397,10 +397,7 @@ pub async fn handle_connection(
                     proxy_addr = format!("{}",  value);
                     continue
                 }
-                if key.to_lowercase().starts_with("rehost"){
-                    proxy_addr = format!("{}",  value);
-                    continue
-                }
+                
                 if key.to_lowercase().starts_with("chromeso"){
                     chrome_so = format!("{}",  value);
                     continue
