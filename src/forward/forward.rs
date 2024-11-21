@@ -187,7 +187,7 @@ pub async fn start_forward_proxy(
 
 fn parse_http_request(
     buffer: Vec<u8>,
-) -> Result<(String, String, HashMap<String, String>, Vec<u8>, String, String), Box<dyn Error + Send + Sync>> {
+) -> Result<(String, String, HashMap<String, String>, String, String), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -229,19 +229,13 @@ fn parse_http_request(
 
     eprintln!("请求方法: {}, URL: {}", method, target_url);
 
-    // Extract request body (if present)
-    let body_start = buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(0) + 4;
-    let body = if body_start < buffer.len() {
-        buffer[body_start..].to_vec() // Create a new Vec<u8>
-    } else {
-        Vec::new()
-    };
+    
 
     // Return parsed result
     if !re_host.is_empty() {
-        Ok((method, path, headers_map, body, target_url, re_host))
+        Ok((method, path, headers_map, target_url, re_host))
     } else {
-        Ok((method, path, headers_map, body, target_url, host))
+        Ok((method, path, headers_map, target_url, host))
     }
 }
 
@@ -352,7 +346,7 @@ pub async fn handle_connection(
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
-    let (method,path,headers_map,body,target_url,host) =  parse_http_request(buffer)?;;
+    let (method,path,headers_map,target_url,host) =  parse_http_request(buffer)?;;
 
 
     let mut chrome_so = format!("chrome116");
