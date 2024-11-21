@@ -583,7 +583,14 @@ pub async fn handle_connection(
             for i in 0..(*headers_ptr).count {
                 let header_ptr = (*headers_ptr).headers.offset(i as isize);
                 let header = CStr::from_ptr(*header_ptr).to_string_lossy().into_owned();
-                response_headers.push(header);
+                if header.to_lowercase().starts_with("set-cookie") {
+                    let domain_regex = Regex::new(r"(?i)Domain=[^;]+;?\s?").unwrap();
+                    let modified_header = domain_regex.replace(&header, "").into_owned();
+                    response_headers.push(modified_header);
+                }else{
+                    response_headers.push(header);
+                }
+                
             }
 
             // 读取响应体
