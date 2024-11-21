@@ -605,11 +605,11 @@ pub async fn handle_connection(
 
             // 打开或创建日志文件
             
-            let res = curl_easy_setopt(easy_handle, CURLOPT_VERBOSE, 1 as *const c_void);
-            if res.0 != CURLE_OK.0 {
-                eprintln!("Failed to enable verbose logging: {}", res);
-                return Err("Failed to enable verbose mode".into());
-            }
+            // let res = curl_easy_setopt(easy_handle, CURLOPT_VERBOSE, 1 as *const c_void);
+            // if res.0 != CURLE_OK.0 {
+            //     eprintln!("Failed to enable verbose logging: {}", res);
+            //     return Err("Failed to enable verbose mode".into());
+            // }
 
 
             
