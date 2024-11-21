@@ -541,7 +541,12 @@ pub async fn handle_connection(
                 eprintln!("Failed to impersonate browser: {}", result);
                 return Err("Impersonation failed".into());
             }
-            // 执行请求
+            let res = curl_easy_setopt(easy_handle, CURLOPT_VERBOSE, 1 as *const c_void);
+            if res.0 != CURLE_OK.0 {
+                eprintln!("Failed to enable verbose logging: {}", res);
+                return Err("Failed to enable verbose mode".into());
+            }
+                        // 执行请求
             let res = curl_easy_perform(easy_handle);
             if res.0 != CURLE_OK.0 {
                 let error_str = if !curl_easy_strerror(res).is_null() {
