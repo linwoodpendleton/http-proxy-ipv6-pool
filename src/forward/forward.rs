@@ -22,6 +22,8 @@ use scopeguard::defer;
 use tokio::task;
 use regex::Regex;
 use crate::forward::curl_ffi::CURLE_OK;
+use std::fs::File;
+use std::os::unix::io::IntoRawFd;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
 #[derive(Clone)]
