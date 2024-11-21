@@ -275,6 +275,62 @@ pub async fn handle_connection(
         }
     }
 
+
+   if header_end_index.is_none() {
+        return Err("Failed to read complete HTTP headers".into());
+    }
+
+    // Step 2: 解析 HTTP 请求头
+    let mut headers = [httparse::EMPTY_HEADER; 64];
+    let mut req = Request::new(&mut headers);
+    let status = req.parse(&buffer)?;
+
+    if !matches!(status, httparse::Status::Complete(_)) {
+        return Err("Incomplete HTTP request".into());
+    }
+
+    let method = req.method.unwrap_or("").to_string();
+    let path = req.path.unwrap_or("").to_string();
+
+    // 转换头部为 HashMap
+    for header in req.headers.iter() {
+        headers_map.insert(
+            header.name.to_lowercase(),
+            String::from_utf8_lossy(header.value).to_string(),
+        );
+    }
+
+    // 提取 Content-Length
+    if let Some(len) = headers_map.get("content-length") {
+        content_length = len.parse::<usize>().unwrap_or(0);
+    }
+
+    // Step 3: 如果有请求体，继续读取完整的数据
+    let body_start = header_end_index.unwrap();
+    let mut body = if body_start < buffer.len() {
+        buffer[body_start..].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    while body.len() < content_length {
+        let mut temp_buf = [0u8; 1024];
+        let n = {
+            let mut locked_stream = local_stream.lock().await; // 锁定流
+            locked_stream.read(&mut temp_buf).await?
+        };
+        if n == 0 {
+            break; // 连接关闭
+        }
+        body.extend_from_slice(&temp_buf[..n]);
+    }
+
+    if body.len() < content_length {
+        return Err("Incomplete HTTP body".into());
+    }
+
+
+    
     // 解析 HTTP 请求头
     let mut headers = [httparse::EMPTY_HEADER; 64];
 
