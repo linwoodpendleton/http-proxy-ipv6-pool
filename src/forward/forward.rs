@@ -380,7 +380,7 @@ pub async fn handle_connection(
             let mut header_list = ptr::null_mut();
             for (key, value) in headers_map.iter() {
                 // 忽略一些自动设置的头部
-                if key.to_lowercase().starts_with("x-forwarded")  || key.to_lowercase().starts_with("x-gt") || key.to_lowercase().starts_with("rehost"){
+                if key.to_lowercase().starts_with("x-forwarded")  || key.to_lowercase().starts_with("x-gt") || key.to_lowercase().starts_with("rehost")|| key.to_lowercase().starts_with("content-length"){
                     continue;
                 }
                 if key.to_lowercase().starts_with("referer"){
