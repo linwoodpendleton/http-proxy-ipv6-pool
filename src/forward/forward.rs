@@ -22,6 +22,8 @@ use scopeguard::defer;
 use tokio::task;
 use regex::Regex;
 use crate::forward::curl_ffi::CURLE_OK;
+use std::fs::File;
+use std::os::unix::io::IntoRawFd;
 
 /// 定义 ForwardMapping 结构体和 ProxyType 枚举
 #[derive(Clone)]
@@ -185,7 +187,7 @@ pub async fn start_forward_proxy(
 
 fn parse_http_request(
     buffer: Vec<u8>,
-) -> Result<(String, String, HashMap<String, String>, Vec<u8>, String, String), Box<dyn Error + Send + Sync>> {
+) -> Result<(String, String, HashMap<String, String>, String, String), Box<dyn Error + Send + Sync>> {
     let mut headers = [httparse::EMPTY_HEADER; 64];
     let mut req = httparse::Request::new(&mut headers);
 
@@ -227,19 +229,13 @@ fn parse_http_request(
 
     eprintln!("请求方法: {}, URL: {}", method, target_url);
 
-    // Extract request body (if present)
-    let body_start = buffer.windows(4).position(|w| w == b"\r\n\r\n").unwrap_or(0) + 4;
-    let body = if body_start < buffer.len() {
-        buffer[body_start..].to_vec() // Create a new Vec<u8>
-    } else {
-        Vec::new()
-    };
+    
 
     // Return parsed result
     if !re_host.is_empty() {
-        Ok((method, path, headers_map, body, target_url, re_host))
+        Ok((method, path, headers_map, target_url, re_host))
     } else {
-        Ok((method, path, headers_map, body, target_url, host))
+        Ok((method, path, headers_map, target_url, host))
     }
 }
 
@@ -252,27 +248,90 @@ pub async fn handle_connection(
     // eprintln!("处理来自 {} 的连接", client_addr);
 
     let mut buffer = Vec::new();
+
+    // Step 1: 读取 HTTP 请求头
+    let mut headers_map = HashMap::new();
+    let mut content_length = 0;
+    let mut header_end_index = None;
+    
     loop {
         let n = {
-            let mut locked_stream = local_stream.lock().await; // 将锁定的流的作用域缩小到只包含此块
+            let mut locked_stream = local_stream.lock().await; // 锁定流
             let mut temp_buf = [0u8; 1024];
             let n = locked_stream.read(&mut temp_buf).await?;
             if n > 0 {
                 buffer.extend_from_slice(&temp_buf[..n]);
             }
             n
-        }; // `locked_stream` 在这里被释放
+        };
 
         if n == 0 {
-            break;
+            break; // 客户端关闭连接
         }
 
-        // 检查请求头是否读取完成
-        if buffer.windows(4).any(|w| w == b"\r\n\r\n") {
+        // 检查是否读取到完整的头部
+        if let Some(index) = buffer.windows(4).position(|w| w == b"\r\n\r\n") {
+            header_end_index = Some(index + 4); // 包括头部结束符长度
             break;
         }
     }
 
+
+   if header_end_index.is_none() {
+        return Err("Failed to read complete HTTP headers".into());
+    }
+
+    // Step 2: 解析 HTTP 请求头
+    let mut headers = [httparse::EMPTY_HEADER; 64];
+    let mut req = Request::new(&mut headers);
+    let status = req.parse(&buffer)?;
+
+    if !matches!(status, httparse::Status::Complete(_)) {
+        return Err("Incomplete HTTP request".into());
+    }
+
+    let method = req.method.unwrap_or("").to_string();
+    let path = req.path.unwrap_or("").to_string();
+
+    // 转换头部为 HashMap
+    for header in req.headers.iter() {
+        headers_map.insert(
+            header.name.to_lowercase(),
+            String::from_utf8_lossy(header.value).to_string(),
+        );
+    }
+
+    // 提取 Content-Length
+    if let Some(len) = headers_map.get("content-length") {
+        content_length = len.parse::<usize>().unwrap_or(0);
+    }
+
+    // Step 3: 如果有请求体，继续读取完整的数据
+    let body_start = header_end_index.unwrap();
+    let mut body = if body_start < buffer.len() {
+        buffer[body_start..].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    while body.len() < content_length {
+        let mut temp_buf = [0u8; 1024];
+        let n = {
+            let mut locked_stream = local_stream.lock().await; // 锁定流
+            locked_stream.read(&mut temp_buf).await?
+        };
+        if n == 0 {
+            break; // 连接关闭
+        }
+        body.extend_from_slice(&temp_buf[..n]);
+    }
+
+    if body.len() < content_length {
+        return Err("Incomplete HTTP body".into());
+    }
+
+
+    
     // 解析 HTTP 请求头
     let mut headers = [httparse::EMPTY_HEADER; 64];
 
@@ -287,7 +346,7 @@ pub async fn handle_connection(
         eprintln!("不完整的 HTTP 请求");
         return Err("Incomplete HTTP request".into());
     }
-    let (method,path,headers_map,body,target_url,host) =  parse_http_request(buffer)?;;
+    let (method,path,headers_map,target_url,host) =  parse_http_request(buffer)?;;
 
 
     let mut chrome_so = format!("chrome116");
@@ -373,17 +432,12 @@ pub async fn handle_connection(
                     return Err(format!("curl_easy_setopt CURLOPT_POSTFIELDSIZE failed: {}", res).into());
                 }
             }
-            let target_browser = CString::new(chrome_so).unwrap(); // 选择要模拟的浏览器
-            let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
-            if result.0 != CURLE_OK.0 {
-                eprintln!("Failed to impersonate browser: {}", result);
-                return Err("Impersonation failed".into());
-            }
+           
             // 设置请求头
             let mut header_list = ptr::null_mut();
             for (key, value) in headers_map.iter() {
                 // 忽略一些自动设置的头部
-                if key.to_lowercase().starts_with("x-forwarded") || key.to_lowercase().starts_with("connection") || key.to_lowercase().starts_with("x-gt") {
+                if key.to_lowercase().starts_with("x-forwarded")  || key.to_lowercase().starts_with("x-gt") || key.to_lowercase().starts_with("rehost")|| key.to_lowercase().starts_with("content-length"){
                     continue;
                 }
                 if key.to_lowercase().starts_with("referer"){
@@ -400,6 +454,7 @@ pub async fn handle_connection(
                     proxy_addr = format!("{}",  value);
                     continue
                 }
+                
                 if key.to_lowercase().starts_with("chromeso"){
                     chrome_so = format!("{}",  value);
                     continue
@@ -540,7 +595,24 @@ pub async fn handle_connection(
                 unsafe { free_headers(headers_ptr) };
                 return Err(format!("curl_easy_setopt CURLOPT_HEADERDATA failed: {}", res).into());
             }
+            let target_browser = CString::new(chrome_so).unwrap(); // 选择要模拟的浏览器
+            let result = curl_easy_impersonate(easy_handle, target_browser.as_ptr(), 1);
+            if result.0 != CURLE_OK.0 {
+                eprintln!("Failed to impersonate browser: {}", result);
+                return Err("Impersonation failed".into());
+            }
 
+
+            // 打开或创建日志文件
+            
+            // let res = curl_easy_setopt(easy_handle, CURLOPT_VERBOSE, 1 as *const c_void);
+            // if res.0 != CURLE_OK.0 {
+            //     eprintln!("Failed to enable verbose logging: {}", res);
+            //     return Err("Failed to enable verbose mode".into());
+            // }
+
+
+            
             // 执行请求
             let res = curl_easy_perform(easy_handle);
             if res.0 != CURLE_OK.0 {
@@ -583,7 +655,14 @@ pub async fn handle_connection(
             for i in 0..(*headers_ptr).count {
                 let header_ptr = (*headers_ptr).headers.offset(i as isize);
                 let header = CStr::from_ptr(*header_ptr).to_string_lossy().into_owned();
-                response_headers.push(header);
+                if header.to_lowercase().starts_with("set-cookie") {
+                    let domain_regex = Regex::new(r"(?i)Domain=[^;]+;?\s?").unwrap();
+                    let modified_header = domain_regex.replace(&header, "").into_owned();
+                    response_headers.push(modified_header);
+                }else{
+                    response_headers.push(header);
+                }
+                
             }
 
             // 读取响应体
