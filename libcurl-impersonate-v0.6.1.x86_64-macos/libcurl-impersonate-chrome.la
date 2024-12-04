@@ -14,10 +14,10 @@ library_names='libcurl-impersonate-chrome.4.dylib libcurl-impersonate-chrome.dyl
 old_library='libcurl-impersonate-chrome.a'
 
 # Linker flags that cannot go in dependency_libs.
-inherited_linker_flags='  -pthread -framework CoreFoundation -framework SystemConfiguration'
+inherited_linker_flags='  -pthread -framework CoreFoundation -framework CoreServices -framework SystemConfiguration'
 
 # Libraries that this one depends upon.
-dependency_libs=' -L/Users/runner/work/curl-impersonate/curl-impersonate/brotli-1.0.9/out/installed/lib -L/Users/runner/work/curl-impersonate/curl-impersonate/boringssl/build/lib -L/Users/runner/work/curl-impersonate/curl-impersonate/nghttp2-1.56.0/installed/lib -lrtmp -lssl -lcrypto -lldap -lbrotlidec-static -lbrotlicommon-static -lz'
+dependency_libs=' -lidn2 -lrtmp -lssl -lcrypto -lldap -lzstd -lbrotlidec -lbrotlicommon -lz -lc++ -L/Users/runner/work/curl-impersonate/curl-impersonate/brotli-1.1.0/out/installed/lib -L/usr/local/opt/zstd/lib -L/Users/runner/work/curl-impersonate/curl-impersonate/boringssl-cd95210465496ac2337b313cf49f607762abe286/lib -L/usr/local/Cellar/libidn2/2.3.7/lib -L/Users/runner/work/curl-impersonate/curl-impersonate/nghttp2-1.63.0/installed/lib'
 
 # Names of additional weak libraries provided by this library
 weak_library_names=''
