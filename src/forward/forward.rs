@@ -461,7 +461,7 @@ pub async fn handle_connection(
                 }
 
                 let header = format!("{}: {}", key, value);
-                // eprintln!("header {}",header);
+                eprintln!("header {}",header);
                 let c_header = CString::new(header).unwrap();
                 header_list = curl_slist_append(header_list, c_header.as_ptr());
 
