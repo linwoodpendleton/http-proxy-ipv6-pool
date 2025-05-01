@@ -141,6 +141,7 @@ pub async fn start_forward_proxy(
     ipv4_subnets: Arc<Vec<Ipv4Cidr>>,
     allowed_ips: Option<Vec<IpAddr>>,
     timeout_duration: Duration,
+
 ) -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(mapping.local_addr).await?;
     println!("Listening on {}", mapping.local_addr);
@@ -450,7 +451,7 @@ pub async fn handle_connection(
                     continue
                 }
 
-                if key.to_lowercase().starts_with("proxy"){
+                if key.to_lowercase().starts_with("myproxy"){
                     proxy_addr = format!("{}",  value);
                     continue
                 }
@@ -481,7 +482,7 @@ pub async fn handle_connection(
             // }
             if !mapping.proxy_addrs.is_empty() {
                 // 设置代理地址
-
+                println!("代理地址: {}", proxy_addr);
                 let proxy_c = CString::new(proxy_addr.clone()).unwrap();
                 let res = curl_easy_setopt(easy_handle, CURLOPT_PROXY, proxy_c.as_ptr() as *const c_void);
                 if res.0 != CURLE_OK.0 {
@@ -622,13 +623,13 @@ pub async fn handle_connection(
                 } else {
                     "Unknown CURL error".to_string()
                 };
-                eprintln!("CURL request failed: {}", error_str);
+                eprintln!("CURL request failed: {} proxy {}", error_str,proxy_addr.clone());
                 if !header_list.is_null() {
                     curl_slist_free_all(header_list);
                 }
                 unsafe { free_memory(mem_ptr) };
                 unsafe { free_headers(headers_ptr) };
-                return Err(format!("CURL request failed: {}", error_str).into());
+                return Err(format!("CURL request failed: {} proxy {}", error_str,proxy_addr.clone()).into());
             }
 
             // 获取响应码

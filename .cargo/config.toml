@@ -1,0 +1,11 @@
+[build]
+# If you’d rather not pass --target on every build, uncomment:
+# target = "x86_64-unknown-linux-musl"
+
+[target.x86_64-unknown-linux-musl]
+linker = "x86_64-linux-musl-g++"
+ar     = "x86_64-linux-musl-ar"
+
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-musl-g++"
+ar     = "aarch64-linux-musl-ar"

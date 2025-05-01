@@ -52,7 +52,8 @@ async fn main() {
     opts.optflag("h", "help", "Print this help menu");
     opts.optopt("r", "system_route", "Whether to use system routing instead of ndpdd. (Provide network card interface, such as eth0)", "Network Interface");
     opts.optopt("g", "gateway", "Some service providers need to track the route before it takes effect.", "Gateway");
-
+    // 在 opts.optopt(...) 部分添加
+    opts.optopt("n", "bind-interface", "Bind to a specific network interface for outgoing connections", "INTERFACE");
 
     // 新增的 --forward 参数
     opts.optmulti(
@@ -76,6 +77,13 @@ async fn main() {
         print_usage(&program, opts);
         return;
     }
+
+    // 在其他参数解析后添加
+    let bind_interface = matches.opt_str("n");
+    if let Some(ref iface) = bind_interface {
+        println!("Will bind outgoing connections to network interface: {}", iface);
+    }
+
 
     let system_route = matches.opt_str("r").unwrap_or_else(|| "".to_string());
     println!("System route option received: {}", system_route);
@@ -136,14 +144,14 @@ async fn main() {
         let ipv6_subnets = ipv6_subnets.clone();
         let ipv4_subnets = ipv4_subnets.clone();
         let allowed_ips = allowed_ips.clone();
-
+        let bind_interface_clone = bind_interface.clone();
         tokio::spawn(async move {
             if let Err(e) = start_forward_proxy(
                 mapping.clone(),                       // 克隆 mapping
                 Arc::from(ipv6_subnets),             // 克隆 Arc
                 Arc::from(ipv4_subnets),             // 克隆 Arc
                 allowed_ips.clone(),                   // 克隆 allowed_ips
-                timeout_duration,                      // Copy 类型，无需克隆
+                timeout_duration
             )
                 .await
             {
@@ -172,9 +180,10 @@ async fn main() {
             allowed_ips.clone(),
             username.clone(),
             password.clone(),
-            timeout_duration  // 传递timeout_duration
+            timeout_duration,
+            bind_interface.clone() // 新增参数
         ),
-        start_socks5_proxy(socks5_bind_addr, ipv6_subnets, ipv4_subnets, allowed_ips, username, password, timeout_duration)
+        start_socks5_proxy(socks5_bind_addr, ipv6_subnets, ipv4_subnets, allowed_ips, username, password, timeout_duration,bind_interface.clone())
     );
 
     if let Err(e) = http_result {

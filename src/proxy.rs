@@ -21,7 +21,8 @@ use base64::Engine;
 use hyper::upgrade::OnUpgrade;
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use rand::seq::SliceRandom;
-
+use socket2::{Socket, Domain, Type};
+use std::os::unix::io::{AsRawFd, FromRawFd};
 const MAX_ADDRESSES: usize = 1000;
 
 lazy_static! {
@@ -40,13 +41,14 @@ pub async fn start_proxy(
     username: String,  // 新增用户名参数
     password: String,  // 新增密码参数
     timeout_duration: Duration, // 新增timeout_duration参数
+    bind_interface: Option<String>, // 新增参数：指定绑定的网络接口
 ) -> Result<(), Box<dyn std::error::Error>> {
     let interface_arc = Arc::new(interface);
     let gateway_arc = Arc::new(gateway);
     let allowed_ips_arc = allowed_ips.map(Arc::new);
     let username_arc = Arc::new(username);  // 用 Arc 包装用户名
     let password_arc = Arc::new(password);  // 用 Arc 包装密码
-
+    let bind_interface_arc = bind_interface.map(Arc::new); // 包装成 Arc
     let make_service = make_service_fn(move |conn: &AddrStream| {
         let remote_addr = conn.remote_addr();
         let interface_clone = Arc::clone(&interface_arc);
@@ -57,10 +59,11 @@ pub async fn start_proxy(
         let username_clone = Arc::clone(&username_arc);  // 克隆用户名
         let password_clone = Arc::clone(&password_arc);  // 克隆密码
 
+        let bind_interface_clone = bind_interface_arc.clone(); // 克隆 Arc
         async move {
             let service = service_fn(move |mut req: Request<Body>| {
                 req.extensions_mut().insert(remote_addr);
-
+                let bind_interface_inner = bind_interface_clone.clone(); // 再次克隆供内部使用
                 Proxy {
                     ipv6_subnets: Arc::clone(&ipv6_subnets_clone),  // 直接使用 Arc::clone
                     ipv4_subnets: Arc::clone(&ipv4_subnets_clone),  // 直接使用 Arc::clone
@@ -68,6 +71,7 @@ pub async fn start_proxy(
                     allowed_ips: allowed_ips_clone.clone(),
                     username: username_clone.clone(),  // 传递用户名
                     password: password_clone.clone(),  // 传递密码
+                    bind_interface: bind_interface_inner, // 传递给 Proxy 结构体
                 }
                     .proxy(req, is_system_route, (*interface_clone).clone(), (*gateway_clone).clone(), timeout_duration)
             });
@@ -92,6 +96,7 @@ pub(crate) struct Proxy {
     allowed_ips: Option<Arc<Vec<IpAddr>>>,
     username: Arc<String>,  // 添加用户名字段
     password: Arc<String>,  // 添加密码字段
+    pub bind_interface: Option<Arc<String>>,
 }
 
 impl Proxy {
@@ -247,9 +252,69 @@ impl Proxy {
         }
 
         let addr = addrs[0];
+        // 替换原有的 TcpSocket 创建代码
         let socket = match addr {
-            SocketAddr::V4(_) => TcpSocket::new_v4().unwrap(),
-            SocketAddr::V6(_) => TcpSocket::new_v6().unwrap(),
+            SocketAddr::V4(_) => {
+                if let Some(bind_iface) = &self.bind_interface {
+                    // 创建支持接口绑定的 socket
+                    let sock_result = Socket::new(Domain::IPV4, Type::STREAM, None)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+
+                    let sock = match sock_result {
+                        Ok(sock) => sock,
+                        Err(e) => {
+                            println!("Failed to create socket: {:?}", e);
+                            return Ok(Response::builder()
+                                .status(StatusCode::SERVICE_UNAVAILABLE)
+                                .body(Body::from("Service Unavailable"))
+                                .unwrap());
+                        }
+                    };
+
+                    // 绑定到指定接口
+                    if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
+                        println!("Failed to bind to interface {}: {:?}", bind_iface, e);
+                        // 失败时回退到普通 TcpSocket
+                        TcpSocket::new_v4().unwrap()
+                    } else {
+                        println!("Successfully bound to interface {}", bind_iface);
+                        // 将 socket2::Socket 转换为 tokio::net::TcpSocket
+                        let fd = sock.as_raw_fd();
+                        // 使用 unsafe 从 raw fd 转换
+                        unsafe { TcpSocket::from_raw_fd(fd) }
+                    }
+                } else {
+                    TcpSocket::new_v4().unwrap()
+                }
+            },
+            SocketAddr::V6(_) => {
+                // 类似的逻辑用于 IPv6
+                if let Some(bind_iface) = &self.bind_interface {
+                    let sock_result = Socket::new(Domain::IPV6, Type::STREAM, None)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+                    let sock = match sock_result {
+                        Ok(sock) => sock,
+                        Err(e) => {
+                            println!("Failed to create socket: {:?}", e);
+                            return Ok(Response::builder()
+                                .status(StatusCode::SERVICE_UNAVAILABLE)
+                                .body(Body::from("Service Unavailable"))
+                                .unwrap());
+                        }
+                    };
+
+                    if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
+                        println!("Failed to bind to interface {}: {:?}", bind_iface, e);
+                        TcpSocket::new_v6().unwrap()
+                    } else {
+                        println!("Successfully bound to interface {}", bind_iface);
+                        let fd = sock.as_raw_fd();
+                        unsafe { TcpSocket::from_raw_fd(fd) }
+                    }
+                } else {
+                    TcpSocket::new_v6().unwrap()
+                }
+            },
         };
 
         let bind_addr = match addr {
@@ -283,12 +348,17 @@ impl Proxy {
             self.manage_address_count(&interface,timeout_duration).await;
         }
 
+        // 在 socket.bind(bind_addr) 调用后
         if socket.bind(bind_addr).is_err() {
-            println!("Failed to bind to address");
-            return Ok(Response::builder()
-                .status(StatusCode::SERVICE_UNAVAILABLE)
-                .body(Body::from("Service Unavailable"))
-                .unwrap());
+            println!("Failed to bind to address {}", bind_addr);
+            if let Some(iface) = &self.bind_interface {
+                println!("But we're bound to interface {}, so continuing", iface);
+            } else {
+                return Ok(Response::builder()
+                    .status(StatusCode::SERVICE_UNAVAILABLE)
+                    .body(Body::from("Service Unavailable"))
+                    .unwrap());
+            }
         }
 
         let connect_result = timeout(timeout_duration, socket.connect(addr)).await;

@@ -29,7 +29,8 @@ httparse = "1.9.4"
 libc = "0.2"
 scopeguard = "1.2.0"
 regex = "1"
-
+openssl = { version = "0.10", features = ["vendored"] }
+socket2 = "0.5.7"
 
 
 [profile.release]
@@ -46,3 +47,7 @@ rustflags = [
 rustflags = [
     "-C", "link-arg=-static",
 ]
+
+[target.x86_64-unknown-linux-musl]
+linker = "x86_64-linux-musl-g++"
+ar     = "x86_64-linux-musl-ar"

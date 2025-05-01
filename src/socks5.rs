@@ -11,7 +11,8 @@ use lazy_static::lazy_static;
 use std::io;
 use tokio::time::{timeout, Duration};
 use cidr::{Ipv4Cidr, Ipv6Cidr};
-
+use socket2::{Socket, Domain, Type};
+use std::os::unix::io::{AsRawFd, FromRawFd};
 lazy_static! {
     static ref SOCKS5_ADDRESS_QUEUE: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
 }
@@ -33,15 +34,16 @@ pub async fn start_socks5_proxy(
     username: String,
     password: String,
     timeout_duration: Duration, // 新增 timeout 参数
+    bind_interface: Option<String>, // 新增参数
 ) -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(listen_addr).await?;
     println!("SOCKS5 proxy listening on {}", listen_addr);
-
+    let bind_interface = bind_interface.map(Arc::new);
     let auth_enabled = !username.is_empty() && !password.is_empty();
 
     loop {
         let (mut socket, addr) = listener.accept().await?;
-
+        let bind_interface_clone = bind_interface.clone(); // 克隆 Arc<String>
         if let Some(ref allowed_ips) = allowed_ips {
             let ip_allowed = allowed_ips.iter().any(|allowed_ip| match (allowed_ip, addr.ip()) {
                 (IpAddr::V4(allowed_ip), IpAddr::V4(client_ip)) => {
@@ -73,7 +75,8 @@ pub async fn start_socks5_proxy(
                 &username,
                 &password,
                 auth_enabled,
-                timeout_duration // 传递 timeout 参数
+                timeout_duration,
+                bind_interface_clone.as_ref().map(|s| s.as_str()), // 传递接口名称
             ).await {
                 eprintln!("Failed to handle SOCKS5 connection: {}", e);
             }
@@ -88,7 +91,8 @@ async fn handle_socks5_connection(
     expected_username: &str,
     expected_password: &str,
     auth_enabled: bool,
-    timeout_duration: Duration, // 新增 timeout 参数
+    timeout_duration: Duration,
+    bind_interface: Option<&str>, // 新增参数
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = [0; 2];
     timeout(timeout_duration, socket.read_exact(&mut buf)).await??;
@@ -165,12 +169,59 @@ async fn handle_socks5_connection(
         _ => return Err("Unsupported address type".into()),
     };
 
+    // 替换原来的 socket_type 创建代码
     let socket_type = match addr {
-        SocketAddr::V4(_) => TcpSocket::new_v4()?,
-        SocketAddr::V6(_) => TcpSocket::new_v6()?,
+        SocketAddr::V4(_) => {
+            if let Some(bind_iface) = bind_interface {
+                // 创建支持接口绑定的 socket
+                let sock = Socket::new(Domain::IPV4, Type::STREAM, None)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+                // 绑定到指定接口
+                if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
+                    println!("Failed to bind to interface {}: {:?}", bind_iface, e);
+                    // 失败时回退到普通 TcpSocket
+                    TcpSocket::new_v4()?
+                } else {
+                    println!("Successfully bound to interface {}", bind_iface);
+                    // 将 socket2::Socket 转换为 tokio::net::TcpSocket
+                    let fd = sock.as_raw_fd();
+                    // 使用 unsafe 从 raw fd 转换
+                    unsafe { TcpSocket::from_raw_fd(fd) }
+                }
+            } else {
+                TcpSocket::new_v4()?
+            }
+        },
+        SocketAddr::V6(_) => {
+            // 类似的逻辑用于 IPv6
+            if let Some(bind_iface) = bind_interface {
+                let sock = Socket::new(Domain::IPV6, Type::STREAM, None)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+                if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
+                    println!("Failed to bind to interface {}: {:?}", bind_iface, e);
+                    TcpSocket::new_v6()?
+                } else {
+                    println!("Successfully bound to interface {}", bind_iface);
+                    let fd = sock.as_raw_fd();
+                    unsafe { TcpSocket::from_raw_fd(fd) }
+                }
+            } else {
+                TcpSocket::new_v6()?
+            }
+        },
     };
 
-    socket_type.bind(bind_addr)?;
+    // 修改 socket_type.bind(bind_addr) 相关代码
+    if socket_type.bind(bind_addr).is_err() {
+        println!("Failed to bind to address {}", bind_addr);
+        if bind_interface.is_some() {
+            println!("But we're bound to interface, so continuing");
+        } else {
+            return Err("Failed to bind to address".into());
+        }
+    }
 
     let mut remote = timeout(timeout_duration, socket_type.connect(addr)).await??;
 

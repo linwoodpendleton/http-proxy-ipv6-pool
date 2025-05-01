@@ -1,63 +1,72 @@
-// httpproxy
+// build.rs
 
 use std::env;
 
 fn main() {
-    // 获取目标操作系统
-    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    // 只有当脚本自身或下面这些环境变量变化时才重新运行
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=PKG_CONFIG_ALLOW_CROSS");
+    println!("cargo:rerun-if-env-changed=PKG_CONFIG_PATH");
+    println!("cargo:rerun-if-env-changed=OPENSSL_STATIC");
 
-    match target_os.as_str() {
-        "linux" => {
-            // Linux 特定的链接设置
-            println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-linux-gnu/");
-            println!("cargo:rustc-link-lib=dylib=curl-impersonate-chrome");
-            // 静态链接 libnghttp2、Brotli 和其他依赖库
-            // 指定库搜索路径
-            println!("cargo:rustc-link-search=native=/usr/local/lib");
-            println!("cargo:rustc-link-search=native=/usr/lib");
-            println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
-            println!("cargo:rustc-link-lib=static=curl_wrapper");
-            // 静态链接 libcurl-impersonate-chrome 及其依赖库
-            println!("cargo:rustc-link-lib=dylib=curl-impersonate-chrome");
-            println!("cargo:rustc-link-lib=dylib=nghttp2");
-            println!("cargo:rustc-link-lib=dylib=brotlidec");
-            println!("cargo:rustc-link-lib=dylib=brotlienc");
-            println!("cargo:rustc-link-lib=dylib=ssl");
-            println!("cargo:rustc-link-lib=dylib=crypto");
-            println!("cargo:rustc-link-lib=dylib=z");
+    // 完整目标三元组，比如 "x86_64-unknown-linux-musl"
+    let target = env::var("TARGET").expect("TARGET not set");
 
-            // 动态链接系统库
-            println!("cargo:rustc-link-lib=dylib=pthread");
-            println!("cargo:rustc-link-lib=dylib=dl");
-            println!("cargo:rustc-link-lib=dylib=m");
-            println!("cargo:rustc-link-lib=dylib=util");
-            println!("cargo:rustc-link-lib=dylib=rt");
+    // 静态 musl 支持：x86_64 和 aarch64
+    if target == "x86_64-unknown-linux-musl" || target == "aarch64-unknown-linux-musl" {
+        // 根据架构选取对应目录
+        let lib_dir = if target == "x86_64-unknown-linux-musl" {
+            "libcurl-impersonate-v0.8.2.x86_64-linux-musl/"
+        } else {
+            "libcurl-impersonate-v0.8.2.aarch64-linux-musl/"
+        };
 
-        },
-        "macos" => {
-            // macOS 特定的链接设置
-            println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-macos/");
-            println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
-            // 静态链接 libnghttp2、Brotli 和其他依赖库
-            println!("cargo:rustc-link-lib=static=nghttp2");
-            println!("cargo:rustc-link-lib=static=brotlidec");
+        // 先搜索我们所有交叉编译好的 .a 文件
+        println!("cargo:rustc-link-search=native={}", lib_dir);
+        // 如果你把 curl_wrapper.a 放在项目根，也可以：
+        println!("cargo:rustc-link-search=native=.");
 
-            // 静态链接 OpenSSL
-            println!("cargo:rustc-link-lib=static=ssl");
-            println!("cargo:rustc-link-lib=static=crypto");
-
-            // 静态链接其他系统库
-            println!("cargo:rustc-link-lib=dylib=pthread");
-            println!("cargo:rustc-link-lib=dylib=dl");
-            println!("cargo:rustc-link-lib=dylib=m");
-            println!("cargo:rustc-link-lib=dylib=util");
-            println!("cargo:rustc-link-lib=dylib=rt");
-
-        },
-        other => {
-            panic!("Unsupported target OS: {}", other);
-        }
+        // 1) 主库：curl-impersonate
+        println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
+        // 2) 你的 C 包装库（提供 free_headers 等）
+        println!("cargo:rustc-link-lib=static=curl_wrapper");
+        // 3) 其它 C 依赖
+        println!("cargo:rustc-link-lib=static=nghttp2");
+        println!("cargo:rustc-link-lib=static=ssl");
+        println!("cargo:rustc-link-lib=static=crypto");
+        println!("cargo:rustc-link-lib=static=z");
+        println!("cargo:rustc-link-lib=static=zstd");
+        // 4) Brotli codec → common，保证符号顺序
+        println!("cargo:rustc-link-lib=static=brotlidec");
+        println!("cargo:rustc-link-lib=static=brotlienc");
+        println!("cargo:rustc-link-lib=static=brotlicommon");
+        // 5) C++ 运行时（stdc++/gcc/unwind）
+        println!("cargo:rustc-link-lib=static=stdc++");
+        println!("cargo:rustc-link-lib=static=gcc");
+        println!("cargo:rustc-link-lib=static=unwind");
     }
-
-    // 如果需要根据不同的 CPU 架构进一步区分，可以在此添加更多条件
+    // GNU/Linux glibc 动态链接分支
+    else if target.contains("linux") {
+        println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-linux-gnu/");
+        println!("cargo:rustc-link-lib=dylib=curl-impersonate-chrome");
+        println!("cargo:rustc-link-lib=dylib=nghttp2");
+        println!("cargo:rustc-link-lib=dylib=brotlidec");
+        println!("cargo:rustc-link-lib=dylib=brotlienc");
+        println!("cargo:rustc-link-lib=dylib=ssl");
+        println!("cargo:rustc-link-lib=dylib=crypto");
+        println!("cargo:rustc-link-lib=dylib=z");
+    }
+    // macOS 静态链接分支
+    else if target.contains("darwin") {
+        println!("cargo:rustc-link-search=native=libcurl-impersonate-v0.6.1.x86_64-macos/");
+        println!("cargo:rustc-link-lib=static=curl-impersonate-chrome");
+        println!("cargo:rustc-link-lib=static=nghttp2");
+        println!("cargo:rustc-link-lib=static=brotlidec");
+        println!("cargo:rustc-link-lib=static=ssl");
+        println!("cargo:rustc-link-lib=static=crypto");
+    }
+    // 其他平台直接报错
+    else {
+        panic!("Unsupported TARGET: {}", target);
+    }
 }
