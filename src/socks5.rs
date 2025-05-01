@@ -213,13 +213,17 @@ async fn handle_socks5_connection(
         },
     };
 
-    // 修改 socket_type.bind(bind_addr) 相关代码
-    if socket_type.bind(bind_addr).is_err() {
-        println!("Failed to bind to address {}", bind_addr);
-        if bind_interface.is_some() {
-            println!("But we're bound to interface, so continuing");
-        } else {
-            return Err("Failed to bind to address".into());
+    if bind_interface.is_some() {
+        // 如果已经绑定到接口，则不需要再绑定到 IP 地址
+        println!("Using network interface binding instead of IP binding");
+    } else {
+        if socket_type.bind(bind_addr).is_err() {
+            println!("Failed to bind to address {}", bind_addr);
+            if bind_interface.is_some() {
+                println!("But we're bound to interface, so continuing");
+            } else {
+                return Err("Failed to bind to address".into());
+            }
         }
     }
 

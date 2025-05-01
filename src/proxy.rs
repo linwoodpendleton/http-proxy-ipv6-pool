@@ -23,6 +23,8 @@ use cidr::{Ipv4Cidr, Ipv6Cidr};
 use rand::seq::SliceRandom;
 use socket2::{Socket, Domain, Type};
 use std::os::unix::io::{AsRawFd, FromRawFd};
+use get_if_addrs::{get_if_addrs, IfAddr};
+
 const MAX_ADDRESSES: usize = 1000;
 
 lazy_static! {
@@ -254,73 +256,30 @@ impl Proxy {
         let addr = addrs[0];
         // 替换原有的 TcpSocket 创建代码
         let socket = match addr {
-            SocketAddr::V4(_) => {
-                if let Some(bind_iface) = &self.bind_interface {
-                    // 创建支持接口绑定的 socket
-                    let sock_result = Socket::new(Domain::IPV4, Type::STREAM, None)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
-
-                    let sock = match sock_result {
-                        Ok(sock) => sock,
-                        Err(e) => {
-                            println!("Failed to create socket: {:?}", e);
-                            return Ok(Response::builder()
-                                .status(StatusCode::SERVICE_UNAVAILABLE)
-                                .body(Body::from("Service Unavailable"))
-                                .unwrap());
-                        }
-                    };
-
-                    // 绑定到指定接口
-                    if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
-                        println!("Failed to bind to interface {}: {:?}", bind_iface, e);
-                        // 失败时回退到普通 TcpSocket
-                        TcpSocket::new_v4().unwrap()
-                    } else {
-                        println!("Successfully bound to interface {}", bind_iface);
-                        // 将 socket2::Socket 转换为 tokio::net::TcpSocket
-                        let fd = sock.as_raw_fd();
-                        // 使用 unsafe 从 raw fd 转换
-                        unsafe { TcpSocket::from_raw_fd(fd) }
-                    }
-                } else {
-                    TcpSocket::new_v4().unwrap()
-                }
-            },
-            SocketAddr::V6(_) => {
-                // 类似的逻辑用于 IPv6
-                if let Some(bind_iface) = &self.bind_interface {
-                    let sock_result = Socket::new(Domain::IPV6, Type::STREAM, None)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
-                    let sock = match sock_result {
-                        Ok(sock) => sock,
-                        Err(e) => {
-                            println!("Failed to create socket: {:?}", e);
-                            return Ok(Response::builder()
-                                .status(StatusCode::SERVICE_UNAVAILABLE)
-                                .body(Body::from("Service Unavailable"))
-                                .unwrap());
-                        }
-                    };
-
-                    if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
-                        println!("Failed to bind to interface {}: {:?}", bind_iface, e);
-                        TcpSocket::new_v6().unwrap()
-                    } else {
-                        println!("Successfully bound to interface {}", bind_iface);
-                        let fd = sock.as_raw_fd();
-                        unsafe { TcpSocket::from_raw_fd(fd) }
-                    }
-                } else {
-                    TcpSocket::new_v6().unwrap()
-                }
-            },
+            SocketAddr::V4(_) => TcpSocket::new_v4().unwrap(),
+            SocketAddr::V6(_) => TcpSocket::new_v6().unwrap(),
         };
 
         let bind_addr = match addr {
-            SocketAddr::V4(_) => get_rand_ipv4_socket_addr(&self.ipv4_subnets),
-            SocketAddr::V6(_) => get_rand_ipv6_socket_addr(&self.ipv6_subnets),
+            SocketAddr::V4(_) => {
+                if self.bind_interface.is_some() {
+                    let mut rng = rand::thread_rng();
+                    SocketAddr::new(get_interface_ip(self.bind_interface.as_ref().unwrap()).unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),rng.gen::<u16>())
+                } else {
+
+                    get_rand_ipv4_socket_addr(&self.ipv4_subnets)
+                }
+            },
+            SocketAddr::V6(_) => {
+                if self.bind_interface.is_some() {
+                    let mut rng = rand::thread_rng();
+                    SocketAddr::new(get_interface_ip(self.bind_interface.as_ref().unwrap()).unwrap_or(IpAddr::V6(Ipv6Addr::LOCALHOST)),rng.gen::<u16>())
+                } else {
+                    get_rand_ipv6_socket_addr(&self.ipv6_subnets)
+                }
+            },
         };
+        println!("Binding to address {}", bind_addr);
 
         if is_system_route {
             let cmd_str = format!(
@@ -348,18 +307,23 @@ impl Proxy {
             self.manage_address_count(&interface,timeout_duration).await;
         }
 
-        // 在 socket.bind(bind_addr) 调用后
-        if socket.bind(bind_addr).is_err() {
-            println!("Failed to bind to address {}", bind_addr);
-            if let Some(iface) = &self.bind_interface {
-                println!("But we're bound to interface {}, so continuing", iface);
-            } else {
-                return Ok(Response::builder()
-                    .status(StatusCode::SERVICE_UNAVAILABLE)
-                    .body(Body::from("Service Unavailable"))
-                    .unwrap());
+        if self.bind_interface.is_some() {
+            println!("Binding to interface {}", self.bind_interface.as_ref().unwrap());
+        } else {
+            println!("Binding to address {}", bind_addr);
+            if socket.bind(bind_addr).is_err() {
+                println!("Failed to bind to address {}", bind_addr);
+                if let Some(iface) = &self.bind_interface {
+                    println!("But we're bound to interface {}, so continuing", iface);
+                } else {
+                    return Ok(Response::builder()
+                        .status(StatusCode::SERVICE_UNAVAILABLE)
+                        .body(Body::from("Service Unavailable"))
+                        .unwrap());
+                }
             }
         }
+
 
         let connect_result = timeout(timeout_duration, socket.connect(addr)).await;
         let mut server = match connect_result {
@@ -459,9 +423,27 @@ impl Proxy {
                 IpAddr::V6(Ipv6Addr::LOCALHOST) // Default to IPv6 loopback
             }
         };
+        let local_ip = match self.bind_interface {
+            Some(ref bind_iface) => {
+                // 尝试获取接口 IP
+                if let Some(interface_ip) = get_interface_ip(bind_iface.as_str()) {
+                    println!("Using IP {} from interface {} for HTTP connection",
+                             interface_ip, bind_iface);
+                    interface_ip
+                } else {
+                    println!("Could not get IP for interface {}, using fallback IP", bind_iface);
+                    bind_addr
+                }
+            }
+            None => bind_addr,
+        };
+
+
+
 
         let mut http = HttpConnector::new();
-        http.set_local_address(Some(bind_addr));
+
+        http.set_local_address(Some(local_ip));
         println!("{} via {}", req.uri().host().unwrap_or_default(), bind_addr);
 
         if is_system_route {
@@ -595,4 +577,26 @@ fn get_rand_ipv6(ipv6_cidr: &Ipv6Cidr) -> IpAddr {
         ipv6 = net_part | host_part;
     }
     IpAddr::V6(ipv6.into())
+}
+
+fn get_interface_ip(interface_name: &str) -> Option<IpAddr> {
+    match get_if_addrs() {
+        Ok(if_addrs) => {
+            for if_addr in if_addrs {
+                if if_addr.name == interface_name {
+                    match if_addr.addr {
+                        IfAddr::V4(addr) => return Some(IpAddr::V4(addr.ip)),
+                        IfAddr::V6(addr) => {
+                            // 过滤掉链路本地地址
+                            if !addr.ip.segments()[0..2].eq(&[0xfe80, 0]) {
+                                return Some(IpAddr::V6(addr.ip));
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        },
+        Err(_) => None,
+    }
 }
