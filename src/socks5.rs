@@ -1,8 +1,8 @@
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use std::error::Error;
-use std::net::{SocketAddr, IpAddr};
-use rand::random;
+use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+use rand::{random, Rng};
 use rand::seq::SliceRandom;
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -13,6 +13,8 @@ use tokio::time::{timeout, Duration};
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use socket2::{Socket, Domain, Type};
 use std::os::unix::io::{AsRawFd, FromRawFd};
+use get_if_addrs::{get_if_addrs, IfAddr};
+
 lazy_static! {
     static ref SOCKS5_ADDRESS_QUEUE: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
 }
@@ -172,50 +174,44 @@ async fn handle_socks5_connection(
     // 替换原来的 socket_type 创建代码
     let socket_type = match addr {
         SocketAddr::V4(_) => {
-            if let Some(bind_iface) = bind_interface {
-                // 创建支持接口绑定的 socket
-                let sock = Socket::new(Domain::IPV4, Type::STREAM, None)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-                // 绑定到指定接口
-                if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
-                    println!("Failed to bind to interface {}: {:?}", bind_iface, e);
-                    // 失败时回退到普通 TcpSocket
-                    TcpSocket::new_v4()?
-                } else {
-                    println!("Successfully bound to interface {}", bind_iface);
-                    // 将 socket2::Socket 转换为 tokio::net::TcpSocket
-                    let fd = sock.as_raw_fd();
-                    // 使用 unsafe 从 raw fd 转换
-                    unsafe { TcpSocket::from_raw_fd(fd) }
+                let socket_v4 = TcpSocket::new_v4();
+                match socket_v4 {
+                    Ok(socket) => socket,
+                    Err(e) => {
+                        println!("Failed to create IPv4 socket: {:?}", e);
+                        return Err("Failed to create IPv4 socket".into());
+                    }
                 }
-            } else {
-                TcpSocket::new_v4()?
-            }
+
         },
         SocketAddr::V6(_) => {
-            // 类似的逻辑用于 IPv6
-            if let Some(bind_iface) = bind_interface {
-                let sock = Socket::new(Domain::IPV6, Type::STREAM, None)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-
-                if let Err(e) = sock.bind_device(Some(bind_iface.as_bytes())) {
-                    println!("Failed to bind to interface {}: {:?}", bind_iface, e);
-                    TcpSocket::new_v6()?
-                } else {
-                    println!("Successfully bound to interface {}", bind_iface);
-                    let fd = sock.as_raw_fd();
-                    unsafe { TcpSocket::from_raw_fd(fd) }
+                let socket_v6_result = TcpSocket::new_v6();
+                match socket_v6_result {
+                    Ok(socket) => socket,
+                    Err(e) => {
+                        println!("Failed to create IPv6 socket: {:?}", e);
+                        return Err("Failed to create IPv6 socket".into());
+                    }
                 }
-            } else {
-                TcpSocket::new_v6()?
-            }
+
+
         },
     };
 
+
+
     if bind_interface.is_some() {
         // 如果已经绑定到接口，则不需要再绑定到 IP 地址
-        println!("Using network interface binding instead of IP binding");
+        // println!("Using network interface binding instead of IP binding");
+        let mut rng = rand::thread_rng();
+        let bind_addr2 = SocketAddr::new(get_interface_ip(bind_interface.unwrap()).unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),rng.gen::<u16>());
+        println!("Binding to ip {}", bind_addr2);
+        if socket_type.bind(bind_addr2).is_err() {
+            println!("Failed to bind to interface {}", bind_interface.unwrap());
+            return Err("Failed to bind to interface".into());
+        }
+
     } else {
         if socket_type.bind(bind_addr).is_err() {
             println!("Failed to bind to address {}", bind_addr);
@@ -325,6 +321,27 @@ impl SocksReply {
     {
         stream.write_all(&self.buf).await?;
         Ok(())
+    }
+}
+fn get_interface_ip(interface_name: &str) -> Option<IpAddr> {
+    match get_if_addrs() {
+        Ok(if_addrs) => {
+            for if_addr in if_addrs {
+                if if_addr.name == interface_name {
+                    match if_addr.addr {
+                        IfAddr::V4(addr) => return Some(IpAddr::V4(addr.ip)),
+                        IfAddr::V6(addr) => {
+                            // 过滤掉链路本地地址
+                            if !addr.ip.segments()[0..2].eq(&[0xfe80, 0]) {
+                                return Some(IpAddr::V6(addr.ip));
+                            }
+                        }
+                    }
+                }
+            }
+            None
+        },
+        Err(_) => None,
     }
 }
 
