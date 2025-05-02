@@ -70,6 +70,7 @@ cd http-proxy-ipv6-pool
    git clone https://github.com/richfelker/musl-cross-make.git
    cd musl-cross-make
    make TARGET=x86_64-linux-musl install
+   export PATH=/home/parallels/musl-cross-make/output/bin/:$PATH
    ```
 2. 导出环境变量：
    ```bash
@@ -111,6 +112,7 @@ cd http-proxy-ipv6-pool
    ```bash
    cd musl-cross-make
    make TARGET=aarch64-linux-musl install
+   export PATH=/home/parallels/musl-cross-make/output/bin/:$PATH
    ```
 2. 复制 curl 头文件到交叉链 sysroot：
    ```bash

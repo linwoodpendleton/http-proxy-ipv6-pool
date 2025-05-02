@@ -554,13 +554,21 @@ impl Proxy {
 
 fn get_rand_ipv4_socket_addr(ipv4_subnets: &[Ipv4Cidr]) -> SocketAddr {
     let mut rng = rand::thread_rng();
-    let ipv4_cidr = ipv4_subnets.choose(&mut rng).unwrap(); // 从列表中随机选择一个子网
+    let ipv4_cidr_result = ipv4_subnets.choose(&mut rng); // 从列表中随机选择一个子网
+    let ipv4_cidr = match ipv4_cidr_result {
+        Some(cidr) => cidr,
+        None => return SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen::<u16>()), // 如果没有子网，返回本地地址
+    };
     SocketAddr::new(get_rand_ipv4(ipv4_cidr), rng.gen::<u16>())
 }
 
 fn get_rand_ipv6_socket_addr(ipv6_subnets: &[Ipv6Cidr]) -> SocketAddr {
     let mut rng = rand::thread_rng();
-    let ipv6_cidr = ipv6_subnets.choose(&mut rng).unwrap(); // 从列表中随机选择一个子网
+    let ipv6_cidr_result = ipv6_subnets.choose(&mut rng); // 从列表中随机选择一个子网
+    let ipv6_cidr = match ipv6_cidr_result {
+        Some(cidr) => cidr,
+        None => return SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), rng.gen::<u16>()), // 如果没有子网，返回本地地址
+    };
     SocketAddr::new(get_rand_ipv6(ipv6_cidr), rng.gen::<u16>())
 }
 
