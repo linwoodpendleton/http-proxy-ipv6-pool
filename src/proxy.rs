@@ -307,11 +307,11 @@ impl Proxy {
             self.manage_address_count(&interface,timeout_duration).await;
         }
 
-        if self.bind_interface.is_some() {
-            println!("Binding to interface {}", self.bind_interface.as_ref().unwrap());
-        } else {
-            println!("Binding to address {}", bind_addr);
-            if socket.bind(bind_addr).is_err() {
+        // if self.bind_interface.is_some() {
+        //     println!("Binding to interface {}", self.bind_interface.as_ref().unwrap());
+        // } else {
+        println!("Binding to address {}", bind_addr);
+        if socket.bind(bind_addr).is_err() {
                 println!("Failed to bind to address {}", bind_addr);
                 if let Some(iface) = &self.bind_interface {
                     println!("But we're bound to interface {}, so continuing", iface);
@@ -322,7 +322,7 @@ impl Proxy {
                         .unwrap());
                 }
             }
-        }
+        // }
 
 
         let connect_result = timeout(timeout_duration, socket.connect(addr)).await;
@@ -431,8 +431,14 @@ impl Proxy {
                              interface_ip, bind_iface);
                     interface_ip
                 } else {
-                    println!("Could not get IP for interface {}, using fallback IP", bind_iface);
-                    bind_addr
+                    // println!("Could not get IP for interface {}, using fallback IP", bind_iface);
+                    // 设置为127.0.0.1
+                    if bind_addr.is_ipv4() {
+                        IpAddr::V4(Ipv4Addr::LOCALHOST)
+                    } else {
+                        IpAddr::V6(Ipv6Addr::LOCALHOST)
+                    }
+
                 }
             }
             None => bind_addr,
@@ -444,7 +450,7 @@ impl Proxy {
         let mut http = HttpConnector::new();
 
         http.set_local_address(Some(local_ip));
-        println!("{} via {}", req.uri().host().unwrap_or_default(), bind_addr);
+        println!("{} via {}", req.uri().host().unwrap_or_default(), local_ip);
 
         if is_system_route {
             let cmd_str = format!(
@@ -473,6 +479,7 @@ impl Proxy {
             let client = Client::builder()
                 .http1_title_case_headers(true)
                 .http1_preserve_header_case(true)
+
                 .build(http);
 
             client.request(req).await
