@@ -1,6 +1,7 @@
 mod proxy;
 mod socks5;
 mod forward;
+mod Socket2Connector;
 
 use cidr::{Ipv4Cidr, Ipv6Cidr};
 use getopts::Options;

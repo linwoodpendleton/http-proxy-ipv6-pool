@@ -24,6 +24,7 @@ use rand::seq::SliceRandom;
 use socket2::{Socket, Domain, Type};
 use std::os::unix::io::{AsRawFd, FromRawFd};
 use get_if_addrs::{get_if_addrs, IfAddr};
+use crate::Socket2Connector::Socket2Connector;
 
 const MAX_ADDRESSES: usize = 1000;
 
@@ -260,25 +261,54 @@ impl Proxy {
             SocketAddr::V6(_) => TcpSocket::new_v6().unwrap(),
         };
 
+
+
         let bind_addr = match addr {
             SocketAddr::V4(_) => {
-                if self.bind_interface.is_some() {
-                    let mut rng = rand::thread_rng();
-                    SocketAddr::new(get_interface_ip(self.bind_interface.as_ref().unwrap()).unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),rng.gen::<u16>())
-                } else {
 
-                    get_rand_ipv4_socket_addr(&self.ipv4_subnets)
-                }
+                get_rand_ipv4_socket_addr(&self.ipv4_subnets)
+
             },
             SocketAddr::V6(_) => {
-                if self.bind_interface.is_some() {
-                    let mut rng = rand::thread_rng();
-                    SocketAddr::new(get_interface_ip(self.bind_interface.as_ref().unwrap()).unwrap_or(IpAddr::V6(Ipv6Addr::LOCALHOST)),rng.gen::<u16>())
-                } else {
-                    get_rand_ipv6_socket_addr(&self.ipv6_subnets)
-                }
+
+                get_rand_ipv6_socket_addr(&self.ipv6_subnets)
+
             },
         };
+
+        // 如果指定了接口，则绑定到接口
+        if let Some(ref bind_iface) = self.bind_interface {
+            println!("Binding to interface {}", bind_iface);
+
+            // 将TcpSocket转换为socket2::Socket以使用bind_device
+            let interface_name = bind_iface.as_str();
+            let socket_fd = socket.as_raw_fd();
+            let socket2 = unsafe { socket2::Socket::from_raw_fd(socket_fd) };
+
+            // 绑定到指定接口
+            if let Err(e) = socket2.bind_device(Some(interface_name.as_bytes())) {
+                println!("Failed to bind to interface {}: {:?}", interface_name, e);
+                // 不要退出，继续尝试连接
+            }
+
+            // 重要：防止socket关闭（转移所有权但不关闭原始fd）
+            std::mem::forget(socket2);
+
+            // 不需要再绑定IP地址，因为我们已经绑定了接口
+        } else {
+            // 如果没有指定接口，则继续使用原来的IP绑定方式
+            println!("Binding to address {}", bind_addr);
+            if socket.bind(bind_addr).is_err() {
+                println!("Failed to bind to address {}", bind_addr);
+                return Ok(Response::builder()
+                    .status(StatusCode::SERVICE_UNAVAILABLE)
+                    .body(Body::from("Service Unavailable"))
+                    .unwrap());
+            }
+        }
+
+
+
         println!("Binding to address {}", bind_addr);
 
         if is_system_route {
@@ -307,22 +337,6 @@ impl Proxy {
             self.manage_address_count(&interface,timeout_duration).await;
         }
 
-        // if self.bind_interface.is_some() {
-        //     println!("Binding to interface {}", self.bind_interface.as_ref().unwrap());
-        // } else {
-        println!("Binding to address {}", bind_addr);
-        if socket.bind(bind_addr).is_err() {
-                println!("Failed to bind to address {}", bind_addr);
-                if let Some(iface) = &self.bind_interface {
-                    println!("But we're bound to interface {}, so continuing", iface);
-                } else {
-                    return Ok(Response::builder()
-                        .status(StatusCode::SERVICE_UNAVAILABLE)
-                        .body(Body::from("Service Unavailable"))
-                        .unwrap());
-                }
-            }
-        // }
 
 
         let connect_result = timeout(timeout_duration, socket.connect(addr)).await;
@@ -445,11 +459,30 @@ impl Proxy {
         };
 
 
+        let http = match self.bind_interface {
+            Some(ref bind_iface) => {
+                println!("Creating custom connector with interface binding to {}", bind_iface);
+
+                // 创建一个自定义连接器
+                let mut connector = hyper::client::HttpConnector::new();
+                connector.set_local_address(Some(local_ip));
+
+                // 创建一个Socket2连接器包装器
+                Socket2Connector::new(connector, Some(bind_iface.as_str()))
+            }
+            None => {
+                // 如果没有指定接口，就使用标准HttpConnector
+                let mut connector = hyper::client::HttpConnector::new();
+                connector.set_local_address(Some(local_ip));
+                Socket2Connector::new(connector, None)
+            }
+        };
 
 
-        let mut http = HttpConnector::new();
 
-        http.set_local_address(Some(local_ip));
+        // let mut http = HttpConnector::new();
+
+        // http.set_local_address(Some(local_ip));
         println!("{} via {}", req.uri().host().unwrap_or_default(), local_ip);
 
         if is_system_route {
@@ -476,20 +509,33 @@ impl Proxy {
 
         // Apply timeout to the HTTP request process
         match timeout(timeout_duration, async {
+            // println!("Building HTTP client...");
             let client = Client::builder()
                 .http1_title_case_headers(true)
                 .http1_preserve_header_case(true)
-
                 .build(http);
 
-            client.request(req).await
+            // println!("Sending request to {}...", req.uri());
+            let response_result = client.request(req).await;
+
+            match &response_result {
+                Ok(res) => println!("Received response with status: {}", res.status()),
+                Err(e) => println!("Error sending request: {:?}", e),
+            }
+
+            response_result
         })
             .await
         {
-            Ok(Ok(res)) => Ok(res),
-            Ok(Err(e)) => Err(e),
+            Ok(Ok(res)) => {
+                // println!("Successfully processed request");
+                Ok(res)
+            },
+            Ok(Err(e)) => {
+                println!("HTTP error: {:?}", e);
+                Err(e)
+            },
             Err(_) => {
-                // Timeout occurred
                 println!("Request processing timed out");
                 Ok(Response::builder()
                     .status(StatusCode::SERVICE_UNAVAILABLE)

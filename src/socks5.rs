@@ -1,7 +1,7 @@
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use std::error::Error;
-use std::net::{SocketAddr, IpAddr, Ipv4Addr};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use rand::{random, Rng};
 use rand::seq::SliceRandom;
 use std::collections::VecDeque;
@@ -201,25 +201,55 @@ async fn handle_socks5_connection(
 
 
 
-    if bind_interface.is_some() {
-        // 如果已经绑定到接口，则不需要再绑定到 IP 地址
-        // println!("Using network interface binding instead of IP binding");
-        let mut rng = rand::thread_rng();
-        let bind_addr2 = SocketAddr::new(get_interface_ip(bind_interface.unwrap()).unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)),rng.gen::<u16>());
-        println!("Binding to ip {}", bind_addr2);
-        if socket_type.bind(bind_addr2).is_err() {
-            println!("Failed to bind to interface {}", bind_interface.unwrap());
-            return Err("Failed to bind to interface".into());
-        }
+    // 如果指定了接口，首先绑定到接口
+    if let Some(interface_name) = bind_interface {
+        println!("Binding SOCKS5 connection to interface: {}", interface_name);
 
+        // 1. 首先将 TcpSocket 转换为 socket2::Socket
+        let socket_fd = socket_type.as_raw_fd();
+        let socket2 = unsafe { socket2::Socket::from_raw_fd(socket_fd) };
+
+        // 2. 绑定到指定接口
+        if let Err(e) = socket2.bind_device(Some(interface_name.as_bytes())) {
+            println!("Failed to bind to interface {}: {:?}", interface_name, e);
+            // 由于 socket2 已经转移了所有权，我们必须忘记它以避免关闭原始 fd
+            std::mem::forget(socket2);
+
+            // 尝试退回到 IP 绑定方式
+            let mut rng = rand::thread_rng();
+            if let Some(interface_ip) = get_interface_ip(interface_name) {
+                println!("Fallback: Binding to IP {} from interface {}", interface_ip, interface_name);
+                let bind_addr2 = SocketAddr::new(interface_ip, rng.gen::<u16>());
+                if socket_type.bind(bind_addr2).is_err() {
+                    println!("Failed to bind to interface IP {}", bind_addr2);
+                    return Err("Failed to bind to interface or interface IP".into());
+                }
+            } else {
+                println!("Could not get IP for interface {}, using standard binding", interface_name);
+                if socket_type.bind(bind_addr).is_err() {
+                    println!("Failed to bind to address {}", bind_addr);
+                    return Err("Failed to bind to address".into());
+                }
+            }
+        } else {
+            // 绑定接口成功，记得忘记 socket2 以保持 socket_type 有效
+            std::mem::forget(socket2);
+
+            // 可选：还可以绑定到接口 IP，提供更完整的控制
+            let mut rng = rand::thread_rng();
+            if let Some(interface_ip) = get_interface_ip(interface_name) {
+                println!("Additionally binding to IP {} from interface {}", interface_ip, interface_name);
+                let bind_addr2 = SocketAddr::new(interface_ip, rng.gen::<u16>());
+                // 忽略绑定错误，因为我们已经绑定到了接口
+                let _ = socket_type.bind(bind_addr2);
+            }
+        }
     } else {
+        // 如果没有指定接口，使用标准的 IP 绑定
+        println!("Binding SOCKS5 connection to address: {}", bind_addr);
         if socket_type.bind(bind_addr).is_err() {
             println!("Failed to bind to address {}", bind_addr);
-            if bind_interface.is_some() {
-                println!("But we're bound to interface, so continuing");
-            } else {
-                return Err("Failed to bind to address".into());
-            }
+            return Err("Failed to bind to address".into());
         }
     }
 
@@ -264,14 +294,28 @@ async fn read_port(socket: &mut TcpStream) -> Result<u16, Box<dyn Error>> {
 
 fn get_rand_ipv4_socket_addr(ipv4_subnets: &[Ipv4Cidr]) -> SocketAddr {
     let mut rng = rand::thread_rng();
-    let ipv4_cidr = ipv4_subnets.choose(&mut rng).unwrap();
+    let ipv4_cidr_result = ipv4_subnets.choose(&mut rng);
+    let ipv4_cidr = match ipv4_cidr_result {
+        Some(cidr) => cidr,
+        None => {
+            // println!("No IPv4 CIDR found");
+            return SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), rng.gen::<u16>()) // 如果没有子网，返回本地地址
+        }
+    };
     let ip_addr = get_rand_ipv4(ipv4_cidr);
     SocketAddr::new(ip_addr, random::<u16>())
 }
 
 fn get_rand_ipv6_socket_addr(ipv6_subnets: &[Ipv6Cidr]) -> SocketAddr {
     let mut rng = rand::thread_rng();
-    let ipv6_cidr = ipv6_subnets.choose(&mut rng).unwrap();
+    let ipv6_cidr_result = ipv6_subnets.choose(&mut rng);
+    let ipv6_cidr = match ipv6_cidr_result {
+        Some(cidr) => cidr,
+        None => {
+            // println!("No IPv6 CIDR found");
+            return SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), rng.gen::<u16>()) // 如果没有子网，返回本地地址
+        }
+    };
     let ip_addr = get_rand_ipv6(ipv6_cidr);
     SocketAddr::new(ip_addr, random::<u16>())
 }
